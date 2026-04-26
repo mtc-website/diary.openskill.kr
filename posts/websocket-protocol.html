@@ -3,14 +3,10 @@
 <head>
 <!-- ======= Open Skill Diary theme adapter (injected) ======= -->
 <style id="osd-theme-adapter">
-  /* Full-width override: clear max-width on common layout containers */
-  html, body { max-width: 100% !important; }
+  /* Reserve space for the floating bar — adapter does NOT touch the simulator's
+     own max-width / centering. If the simulator has .container { max-width: ...;
+     margin: 0 auto } it stays centered; if it has none, it stays full-width. */
   body { padding-top: 56px !important; }
-  .layout, .simulator, .container, main, .wrap, .wrapper, .page, .app, .root,
-  [class*="container"], [class*="wrapper"] {
-    max-width: 100% !important;
-    width: 100% !important;
-  }
 
   /* Bidirectional inversion: applied only when the source tone differs from
      the selected blog theme. If they match, the original colors are kept
@@ -1904,8 +1900,9 @@ async function sendFcm() {
 }
 </script>
 
+
   <!-- hamstern:comments:start -->
-  <section class="comments" style="max-width: 900px; margin: 32px auto; padding: 0 24px;">
+  <section class="osd-comments" style="max-width: 900px; margin: 32px auto; padding: 0 24px;">
     <h3 style="font-size: 18px; color: var(--text, #e8eef9); margin: 0 0 12px;">💬 댓글</h3>
     <script src="https://giscus.app/client.js"
             data-repo="mtc-website/diary.openskill.kr"
@@ -1936,5 +1933,6 @@ async function sendFcm() {
     })();
   </script>
   <!-- hamstern:comments:end -->
+
 </body>
 </html>

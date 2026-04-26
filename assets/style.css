@@ -550,3 +550,15 @@ a { color: inherit; text-decoration: none; }
 
 /* hams:remind addon v4 — hero padding 50/24/50 */
 .hero__inner { padding: 50px 24px !important; }
+
+/* hams:remind addon v5 — 카드 높이 일관화 (제목 2줄 reserve + 카드 그리드 stretch) */
+.posts__list { align-items: stretch; }
+.posts__list > li { display: flex; }
+.post-card { width: 100%; }
+.post-card__title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(2 * 1.4em);
+}
