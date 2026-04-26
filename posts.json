@@ -1,5 +1,7 @@
 {
-  "categories": ["msa"],
+  "categories": [
+    "msa"
+  ],
   "posts": [
     {
       "id": "msa-k8s-websocket",
@@ -8,7 +10,17 @@
       "category": "msa",
       "summary": "한 화면에서 K8s 클러스터·MSA 서비스 메쉬·WebSocket 터널·멱등성 테스트까지 4개의 시뮬레이션을 탭으로 전환하며 실험합니다.",
       "filename": "posts/msa-k8s-websocket.html",
-      "tags": ["msa", "kubernetes", "websocket", "idempotency", "service-mesh"]
+      "tags": [
+        "msa",
+        "kubernetes",
+        "websocket",
+        "idempotency",
+        "service-mesh"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/msa-k8s-websocket.html",
+      "themeInjected": true,
+      "originalFilename": "msa-k8s-websocket.html"
     },
     {
       "id": "saga-orchestration",
@@ -17,7 +29,17 @@
       "category": "msa",
       "summary": "중앙 오케스트레이터가 신용평가·한도승인·자금이체 서비스를 순차 호출하며 실패 시 보상 트랜잭션을 발동시키는 Saga Orchestration 패턴을 시각화합니다.",
       "filename": "posts/saga-orchestration.html",
-      "tags": ["saga", "orchestration", "kafka", "msa", "transaction"]
+      "tags": [
+        "saga",
+        "orchestration",
+        "kafka",
+        "msa",
+        "transaction"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/saga-orchestration.html",
+      "themeInjected": true,
+      "originalFilename": "saga-orchestration.html"
     },
     {
       "id": "saga-choreography",
@@ -26,7 +48,17 @@
       "category": "msa",
       "summary": "각 서비스가 이벤트를 발행·구독하며 자율적으로 협업하는 Saga Choreography. 항공·호텔·렌터카 예약과 보상 흐름을 인터랙티브하게 따라갑니다.",
       "filename": "posts/saga-choreography.html",
-      "tags": ["saga", "choreography", "kafka", "event-driven", "msa"]
+      "tags": [
+        "saga",
+        "choreography",
+        "kafka",
+        "event-driven",
+        "msa"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/saga-choreography.html",
+      "themeInjected": true,
+      "originalFilename": "saga-choreography.html"
     },
     {
       "id": "kafka-async-payment",
@@ -35,7 +67,17 @@
       "category": "msa",
       "summary": "주문 → 결제 → 알림 서비스가 Kafka 토픽을 통해 비동기로 통신하는 메시지 기반 MSA의 흐름과 백프레셔를 직접 조작하며 학습합니다.",
       "filename": "posts/kafka-async-payment.html",
-      "tags": ["kafka", "async", "msa", "messaging", "payment"]
+      "tags": [
+        "kafka",
+        "async",
+        "msa",
+        "messaging",
+        "payment"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/kafka-async-payment.html",
+      "themeInjected": true,
+      "originalFilename": "kafka-async-payment.html"
     },
     {
       "id": "websocket-protocol",
@@ -44,7 +86,16 @@
       "category": "msa",
       "summary": "HTTP 핸드셰이크 → Upgrade → 양방향 프레임 교환까지, WebSocket이 실제로 어떤 바이트를 주고받는지 프로토콜 레벨에서 관찰합니다.",
       "filename": "posts/websocket-protocol.html",
-      "tags": ["websocket", "protocol", "tcp", "real-time"]
+      "tags": [
+        "websocket",
+        "protocol",
+        "tcp",
+        "real-time"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/websocket-protocol.html",
+      "themeInjected": true,
+      "originalFilename": "websocket-protocol.html"
     },
     {
       "id": "sse",
@@ -53,7 +104,16 @@
       "category": "msa",
       "summary": "단방향 스트리밍의 표준, Server-Sent Events. text/event-stream MIME, 자동 재연결, 이벤트 ID 복구를 시각화합니다.",
       "filename": "posts/sse.html",
-      "tags": ["sse", "streaming", "real-time", "http"]
+      "tags": [
+        "sse",
+        "streaming",
+        "real-time",
+        "http"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/sse.html",
+      "themeInjected": true,
+      "originalFilename": "sse.html"
     },
     {
       "id": "ajax-polling",
@@ -62,7 +122,16 @@
       "category": "msa",
       "summary": "WebSocket이 없던 시절의 실시간 통신 방식 — 짧은 폴링과 롱 폴링의 트래픽·지연을 비교하며 한계를 체감합니다.",
       "filename": "posts/ajax-polling.html",
-      "tags": ["ajax", "polling", "real-time", "http"]
+      "tags": [
+        "ajax",
+        "polling",
+        "real-time",
+        "http"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/ajax-polling.html",
+      "themeInjected": true,
+      "originalFilename": "ajax-polling.html"
     }
   ]
 }
