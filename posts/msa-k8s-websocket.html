@@ -1,0 +1,3865 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<!-- ======= Open Skill Diary theme adapter (injected) ======= -->
+<style id="osd-theme-adapter">
+  /* Full-width override: remove max-width constraints from common layout containers */
+  html, body { max-width: 100% !important; }
+  body { padding-top: 56px !important; }
+  .layout, .simulator, .container, main, .wrap, .wrapper, .page, .app, .root,
+  [class*="container"], [class*="wrapper"] {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Light theme: invert + hue-rotate gives a faithful light variant of any dark page.
+     Applied to body so the floating bar (sibling of body) is unaffected. */
+  html[data-osd-theme="light"] #osd-content-wrapper {
+    filter: invert(0.92) hue-rotate(180deg);
+    min-height: 100vh;
+  }
+  html[data-osd-theme="light"] body { background: #f7f8fb !important; }
+  /* Counter-invert media so images/videos render correctly */
+  html[data-osd-theme="light"] #osd-content-wrapper img,
+  html[data-osd-theme="light"] #osd-content-wrapper svg,
+  html[data-osd-theme="light"] #osd-content-wrapper video,
+  html[data-osd-theme="light"] #osd-content-wrapper canvas {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  /* Top floating bar — sits ABOVE the inverted body via a fixed element OUTSIDE body */
+  #osd-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 16px;
+    background: rgba(15, 22, 36, 0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    color: #e8eef9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  html[data-osd-theme="light"] #osd-bar {
+    background: rgba(255,255,255,0.92);
+    border-bottom: 1px solid #e3e8ef;
+    color: #1a2332;
+    box-shadow: 0 1px 3px rgba(20,30,50,0.06), 0 4px 16px rgba(20,30,50,0.04);
+  }
+  #osd-bar a, #osd-bar button {
+    color: inherit; background: transparent; border: 1px solid currentColor;
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    opacity: 0.85; transition: opacity .15s, transform .15s;
+    font-family: inherit;
+  }
+  #osd-bar a:hover, #osd-bar button:hover { opacity: 1; transform: translateY(-1px); }
+  #osd-bar .osd-bar__title { font-weight: 700; letter-spacing: -0.2px; opacity: 0.9; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #osd-bar .osd-bar__actions { display: flex; gap: 8px; flex-shrink: 0; }
+  #osd-bar .osd-bar__brand { font-weight: 700; font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+  @media (max-width: 640px) {
+    #osd-bar { padding: 8px 10px; font-size: 12px; }
+    #osd-bar .osd-bar__title { display: none; }
+  }
+</style>
+<script>
+  (function(){
+    try {
+      var t = localStorage.getItem('blog-theme') || 'dark';
+      document.documentElement.setAttribute('data-osd-theme', t);
+    } catch(e){}
+  })();
+</script>
+<!-- ======= /theme adapter ======= -->
+
+<meta charset="UTF-8" />
+<title>Chapter 4 — MSA · Kubernetes · WebSocket 시뮬레이터</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+    background: linear-gradient(135deg, #0b1733 0%, #16284c 100%);
+    color: #e8edf5;
+    padding: 14px;
+    min-height: 100vh;
+  }
+  header { text-align: center; margin-bottom: 12px; }
+  header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
+  header p { font-size: 12px; color: #9bb1d6; margin-top: 4px; }
+
+  /* Tabs */
+  .tabs {
+    display: flex; gap: 4px; max-width: 1560px; margin: 0 auto 12px;
+    border-bottom: 2px solid rgba(255,255,255,0.08);
+  }
+  .tab-btn {
+    padding: 10px 22px;
+    background: transparent;
+    border: none;
+    color: #9bb1d6;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 8px 8px 0 0;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { color: #e8edf5; background: rgba(255,255,255,0.04); }
+  .tab-btn.active {
+    color: #fff;
+    background: rgba(77,168,255,0.15);
+    border-bottom: 3px solid #4da8ff;
+    margin-bottom: -2px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 14px;
+    max-width: 1560px;
+    margin: 0 auto;
+  }
+  .panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 12px;
+  }
+  .panel h2 {
+    font-size: 12px; color: #9bb1d6; text-transform: uppercase;
+    letter-spacing: 1.2px; margin-bottom: 10px; font-weight: 600;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ───── Scene (common) ───── */
+  .scene {
+    position: relative;
+    background:
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 40px),
+      repeating-linear-gradient(90deg, rgba(255,255,255,0.03) 0 1px, transparent 1px 40px),
+      linear-gradient(135deg, #091527, #111f38);
+    border-radius: 12px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  #scene-k8s { height: 820px; }
+  #scene-msa { height: 880px; }
+  #scene-tunnel { height: 700px; }
+  #scene-idem { height: 720px; }
+
+  /* ───── Tab 4: Idempotency test ───── */
+  .idem-actor {
+    position: absolute;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: #1d2f4f;
+    border: 2px solid #4da8ff;
+    box-shadow: 0 0 14px rgba(77,168,255,0.25);
+    text-align: center;
+    z-index: 5;
+  }
+  .idem-actor .title {
+    font-size: 13px; font-weight: 700; color: #e8edf5;
+    margin-bottom: 3px;
+  }
+  .idem-actor .sub {
+    font-size: 10px; color: #9bb1d6;
+  }
+  .idem-actor.orch { background:#3a2047; border-color:#c378e0; }
+  .idem-actor.product { background:#3d2f15; border-color:#fbbf24; }
+  .idem-actor.kafka { background:#2a2a1a; border-color:#ffd54a; min-width: 220px; }
+  .idem-actor.active {
+    box-shadow: 0 0 22px rgba(255,213,74,0.6);
+    transform: scale(1.03);
+    transition: all 0.25s;
+  }
+
+  .idem-check-box {
+    position: absolute;
+    background: rgba(77,168,255,0.08);
+    border: 1.5px dashed #4da8ff;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: #c7dcff;
+    line-height: 1.5;
+    z-index: 4;
+  }
+  .idem-check-box b { color: #9cccff; }
+  .idem-check-box.hit { border-color: #34d399; background: rgba(52,211,153,0.1); color: #d8ffe9; }
+  .idem-check-box.miss { border-color: #f87171; background: rgba(248,113,113,0.1); color: #ffd6d6; }
+  .idem-check-box.dim  { opacity: 0.45; }
+
+  .idem-topic {
+    position: absolute;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #65386e;
+    min-width: 260px;
+  }
+  .idem-topic .tname {
+    font-size: 11px; font-weight: 700; color: #c9a4e0;
+    font-family: monospace; margin-bottom: 4px;
+  }
+  .idem-topic .tqueue {
+    display: flex; gap: 4px; flex-wrap: wrap;
+    min-height: 18px;
+  }
+  .idem-topic .msg-chip {
+    background: #ffd54a; color: #3b2300;
+    font-size: 9.5px; font-weight: 700;
+    padding: 2px 6px; border-radius: 3px;
+    font-family: monospace;
+    box-shadow: 0 0 6px rgba(255,213,74,0.6);
+    animation: dotPulse 0.7s ease-out;
+  }
+  .idem-topic .msg-chip.dup {
+    background: #f87171; color: #fff;
+    box-shadow: 0 0 8px rgba(248,113,113,0.8);
+  }
+  .idem-topic.active {
+    border-color: #ffd54a;
+    box-shadow: 0 0 12px rgba(255,213,74,0.45);
+    background: rgba(255,213,74,0.12);
+  }
+  .idem-topic .tconsume-btn {
+    margin-top: 5px;
+    padding: 4px 12px;
+    background: #2a1a35;
+    color: #6a5975;
+    border: 1px solid #3d2a48;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: not-allowed;
+    font-family: inherit;
+    transition: all 0.2s;
+  }
+  .idem-topic.ready .tconsume-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    border-color: #0a8f66;
+    cursor: pointer;
+    animation: btnPulse 1.1s infinite;
+  }
+  .idem-topic.ready .tconsume-btn:hover { filter: brightness(1.12); transform: scale(1.04); }
+
+  .idem-mode-chip {
+    position: absolute;
+    top: 8px; right: 14px;
+    padding: 5px 10px;
+    border-radius: 14px;
+    font-size: 11px; font-weight: 700;
+    border: 1px solid transparent;
+    z-index: 6;
+  }
+  .idem-mode-chip.on  { background: rgba(52,211,153,0.15); color: #34d399; border-color: #34d399; }
+  .idem-mode-chip.off { background: rgba(248,113,113,0.15); color: #f87171; border-color: #f87171; }
+
+  .idem-side-db {
+    position: absolute;
+    right: 16px; top: 370px;
+    width: 340px;
+  }
+  .idem-db-table {
+    background: rgba(0,0,0,0.35);
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  .idem-db-table .db-table-name {
+    color: #9bb1d6; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 1px;
+    margin-bottom: 5px; font-weight: 600;
+  }
+  .idem-db-table table {
+    width: 100%; border-collapse: collapse; font-size: 10.5px;
+  }
+  .idem-db-table th, .idem-db-table td {
+    padding: 3px 5px; text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .idem-db-table th { color: #9bb1d6; font-weight: 600; font-size: 9.5px; }
+  .idem-db-table td { color: #e8edf5; font-family: monospace; }
+  .idem-db-table td.changed { background: rgba(255,213,74,0.2); animation: cellFlash 1s; }
+  .idem-db-table td.success { background: rgba(52,211,153,0.2); animation: cellFlash 1s; }
+  .idem-db-table tr.new-row td { animation: rowAppear 0.8s; }
+  .idem-db-table tr.skipped td {
+    background: rgba(148,163,255,0.12); color: #c7d0ff; font-style: italic;
+  }
+
+  .idem-counter {
+    display: inline-block;
+    padding: 2px 6px;
+    background: rgba(248,113,113,0.2);
+    color: #ffb4b4;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 4px;
+  }
+
+  .idem-explain {
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(77,168,255,0.08);
+    border-left: 3px solid #4da8ff;
+    border-radius: 4px;
+    font-size: 11.5px;
+    line-height: 1.6;
+    color: #d8e6ff;
+  }
+  .idem-explain b { color: #9cccff; }
+  .idem-explain code {
+    background: #0d1628; padding: 1px 5px; border-radius: 3px;
+    font-family: monospace; color: #ffd54a; font-size: 10.5px;
+  }
+
+  .btn-idem-toggle-on  { background: linear-gradient(135deg, #10b981, #059669); }
+  .btn-idem-toggle-off { background: linear-gradient(135deg, #ef4444, #dc2626); }
+  .btn-dup  { background: linear-gradient(135deg, #f97316, #c2410c); }
+  .btn-new  { background: linear-gradient(135deg, #4da8ff, #1d64a6); }
+
+  /* ───── MSA Tab: Unified "next step" button ───── */
+  .btn-next-step {
+    width: 100%;
+    padding: 14px 12px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #334155, #1e293b);
+    border: 1.5px solid #475569;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    line-height: 1.45;
+    margin-bottom: 10px;
+    min-height: 60px;
+  }
+  .btn-next-step:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .btn-next-step.ready {
+    background: linear-gradient(135deg, #10b981, #059669);
+    border-color: #0a8f66;
+    animation: btnPulse 1.1s infinite;
+    box-shadow: 0 4px 14px rgba(16,185,129,0.35);
+  }
+  .btn-next-step.ready:hover { filter: brightness(1.1); transform: translateY(-1px); }
+  .btn-next-step.busy {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+    border-color: #b45309;
+    animation: none;
+  }
+  .btn-next-step.done {
+    background: linear-gradient(135deg, #6366f1, #4f46e5);
+    border-color: #4338ca;
+  }
+  .btn-next-step .step-num {
+    display: inline-block;
+    padding: 2px 7px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 800;
+    margin-right: 6px;
+    color: #fff;
+  }
+  .btn-next-step .step-sub {
+    display: block;
+    font-size: 10.5px;
+    font-weight: 500;
+    opacity: 0.85;
+    margin-top: 4px;
+    font-family: monospace;
+  }
+
+  /* ───── Tunnel tab: Host machine boundary (사용자 PC) ───── */
+  .host-machine {
+    position: absolute;
+    border: 2.5px solid #7e8ba3;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(126,139,163,0.08), rgba(126,139,163,0.02));
+    z-index: 0;
+  }
+  .host-machine .host-label {
+    position: absolute;
+    top: -12px; left: 26px;
+    background: #0d1b38; padding: 0 12px;
+    color: #c3ccdd; font-size: 13px; font-weight: 700;
+  }
+  .host-machine .host-sub {
+    position: absolute;
+    top: -10px; right: 26px;
+    background: #0d1b38; padding: 0 10px;
+    color: #7e8ba3; font-size: 10px; font-style: italic;
+  }
+
+  /* ───── Tunnel tab: Docker/Minikube VM boundary ───── */
+  .mk-vm {
+    position: absolute;
+    border: 2.5px solid #41a6e8;
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(65,166,232,0.06), rgba(65,166,232,0.01));
+    z-index: 0;
+  }
+  .mk-vm .mk-label {
+    position: absolute;
+    top: -12px; left: 26px;
+    background: #0d1b38; padding: 0 12px;
+    color: #7ec0ff; font-size: 13px; font-weight: 700;
+  }
+  .mk-vm .mk-sub {
+    position: absolute;
+    top: -10px; right: 26px;
+    background: #0d1b38; padding: 0 10px;
+    color: #5a8ab8; font-size: 10px; font-style: italic;
+  }
+
+  /* Tunnel: generic card */
+  .t-card {
+    position: absolute;
+    background: #1c2d4f;
+    border: 2px solid #2f4370;
+    border-radius: 10px;
+    padding: 8px 10px;
+    text-align: center;
+    z-index: 5;
+    transition: all 0.25s;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+  }
+  .t-card.active  { border-color: #4da8ff; box-shadow: 0 0 16px rgba(77,168,255,0.7); transform: scale(1.04); }
+  .t-card.success { border-color: #34d399; box-shadow: 0 0 16px rgba(52,211,153,0.6); }
+  .t-card .t-title { font-size: 12px; font-weight: 700; color: #e8edf5; }
+  .t-card .t-desc  { font-size: 10px; color: #9bb1d6; margin-top: 3px; line-height: 1.35; }
+  .t-card .t-meta  { font-size: 9px; color: #6b82a8; font-family: monospace; margin-top: 4px; }
+
+  /* Tunnel: variant colors */
+  .t-card.t-browser   { background: #2a1f3d; border-color: #6b4ba1; }
+  .t-card.t-hosts     { background: #2a2f1f; border-color: #8a9146; }
+  .t-card.t-tunnel    { background: #3d2a1f; border-color: #b1794b; }
+  .t-card.t-node      { background: #1a2d44; border-color: #6b9fd0; }
+  .t-card.t-ingress   { background: #3d2a1f; border-color: #b1794b; }
+  .t-card.t-svc       { background: rgba(30, 70, 110, 0.7); border: 1.5px dashed #4da8ff; }
+  .t-card.t-pod       { background: #2b4377; border-color: #4da8ff; }
+
+  /* Tunnel: pipe visualization */
+  .tunnel-pipe {
+    position: absolute;
+    height: 28px;
+    background: linear-gradient(90deg,
+      rgba(177,121,75,0.15),
+      rgba(77,168,255,0.15));
+    border-top: 2px dashed #b1794b;
+    border-bottom: 2px dashed #4da8ff;
+    border-radius: 14px;
+    z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    color: #e5a66e; font-size: 10px; font-weight: 700;
+    letter-spacing: 1px;
+    font-family: monospace;
+  }
+  .tunnel-pipe.active {
+    animation: pipeGlow 1.2s infinite;
+  }
+  @keyframes pipeGlow {
+    0%, 100% { box-shadow: 0 0 0 rgba(229,166,110,0); }
+    50%      { box-shadow: 0 0 20px rgba(229,166,110,0.7); }
+  }
+
+  /* Tunnel: pulse ring for hostPort indicator */
+  .hostport-badge {
+    position: absolute;
+    padding: 3px 7px;
+    background: rgba(52,211,153,0.15);
+    border: 1px solid #34d399;
+    border-radius: 4px;
+    font-size: 9px;
+    color: #34d399;
+    font-family: monospace;
+    font-weight: 700;
+    z-index: 6;
+  }
+
+  /* Tunnel: step log lines on right panel */
+  .tunnel-steps {
+    list-style: none;
+    padding: 0;
+    margin: 6px 0 10px;
+  }
+  .tunnel-steps li {
+    padding: 6px 9px;
+    margin-bottom: 4px;
+    background: rgba(255,255,255,0.03);
+    border-left: 3px solid #3a4e75;
+    border-radius: 4px;
+    font-size: 11px;
+    color: #9bb1d6;
+    line-height: 1.45;
+    transition: all 0.25s;
+  }
+  .tunnel-steps li.active {
+    border-left-color: #4da8ff;
+    background: rgba(77,168,255,0.1);
+    color: #e8edf5;
+  }
+  .tunnel-steps li.done {
+    border-left-color: #34d399;
+    color: #8ad1b2;
+  }
+  .tunnel-steps li b { color: #ffd54a; font-family: monospace; font-size: 10px; }
+
+
+  .ns-label {
+    position: absolute; top: 6px; left: 10px;
+    font-size: 10px; color: #6b82a8;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    z-index: 2;
+  }
+  .ns-label b { color: #4da8ff; }
+
+  /* ───── Generic Node ───── */
+  .node {
+    position: absolute;
+    border-radius: 8px;
+    text-align: center;
+    background: #1c2d4f;
+    border: 2px solid #2f4370;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    transition: all 0.25s;
+    z-index: 5;
+    padding: 6px 4px;
+  }
+  .node.active  { border-color: #4da8ff; box-shadow: 0 0 14px rgba(77,168,255,0.6); transform: scale(1.04); }
+  .node.success { border-color: #34d399; box-shadow: 0 0 14px rgba(52,211,153,0.5); }
+  .node.error   { border-color: #f87171; box-shadow: 0 0 14px rgba(248,113,113,0.5); }
+  .node .name   { font-size: 12px; font-weight: 700; }
+  .node .role   { font-size: 9px; color: #9bb1d6; margin-top: 2px; }
+  .node .port   { font-size: 8px; color: #6b82a8; margin-top: 1px; font-family: monospace; }
+
+  .browser {
+    background: #2a1f3d; border-color: #6b4ba1;
+  }
+  .ingress {
+    background: #3d2a1f; border-color: #b1794b;
+  }
+
+  /* ───── K8s Cluster wrapper (outermost boundary, encloses Ingress + Node) ───── */
+  .k8s-cluster-wrapper {
+    position: absolute;
+    border: 2.5px solid #4da8ff;
+    border-radius: 18px;
+    background: rgba(77,168,255,0.04);
+    box-shadow: inset 0 0 24px rgba(77,168,255,0.06);
+    z-index: 0;
+    pointer-events: none;
+  }
+  .k8s-cluster-wrapper .cluster-label {
+    position: absolute;
+    top: -12px; left: 30px;
+    background: #0d1b38; padding: 0 12px;
+    color: #7ec0ff; font-size: 12px; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .k8s-cluster-wrapper .cluster-sub {
+    position: absolute;
+    top: -10px; right: 30px;
+    background: #0d1b38; padding: 0 10px;
+    color: #5a8ab8; font-size: 9px; font-style: italic;
+  }
+
+  /* ───── K8s Node wrapper (worker VM that hosts all pods) ───── */
+  .k8s-node-wrapper {
+    position: absolute;
+    border: 2.5px dashed #6b9fd0;
+    border-radius: 14px;
+    background: rgba(30, 60, 110, 0.08);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .k8s-node-wrapper .node-label {
+    position: absolute;
+    top: -11px; left: 20px;
+    background: #0d1b38; padding: 0 10px;
+    color: #6b9fd0; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .k8s-node-wrapper .node-sub {
+    position: absolute;
+    bottom: 6px; right: 14px;
+    color: #4a6ba3; font-size: 9px; font-style: italic;
+  }
+
+  /* ───── Namespace wrapper (inner sub-boundary inside Node) ───── */
+  .ns-wrapper {
+    position: absolute;
+    border: 1.5px dotted #e5a66e;
+    border-radius: 10px;
+    background: rgba(229, 166, 110, 0.05);
+    z-index: 2;
+    pointer-events: none;
+  }
+  .ns-wrapper-label {
+    position: absolute;
+    top: -9px; left: 14px;
+    background: #0d1b38; padding: 0 8px;
+    color: #e5a66e; font-size: 10px; font-weight: 700;
+    letter-spacing: 0.3px;
+    font-family: monospace;
+  }
+  .ns-wrapper.ns-ingress { border-color: #e5a66e; }
+
+  /* ───── KRaft role sub-boxes (inside K8s kafka service) ───── */
+  .kraft-roles {
+    display: flex; gap: 5px; margin-top: 5px;
+  }
+  .kraft-role {
+    flex: 1;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #7a478e;
+    border-radius: 5px;
+    padding: 3px 4px;
+    text-align: center;
+    line-height: 1.25;
+  }
+  .kraft-role b { color: #f1a8ff; font-size: 10px; display: block; }
+  .kraft-role .desc { color: #c8a7d4; font-size: 8px; margin-top: 1px; }
+
+  /* ───── Login auth badge (Browser) ───── */
+  .auth-badge {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 9px;
+    background: rgba(248,113,113,0.2);
+    color: #f87171;
+    border: 1px solid #a04040;
+    font-weight: 700;
+  }
+  .auth-badge.logged-in {
+    background: rgba(52,211,153,0.25);
+    color: #34d399;
+    border-color: #2a7a5a;
+  }
+
+  /* ───── Embedded WebSocket component (inside order service) ───── */
+  .ws-comp {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 2px 7px;
+    background: rgba(52,211,153,0.15);
+    border: 1px solid #34d399;
+    border-radius: 4px;
+    font-size: 10px;
+    color: #34d399;
+    font-weight: 700;
+    font-family: monospace;
+    transition: all 0.25s;
+  }
+  .ws-comp.active {
+    background: #34d399;
+    color: #0b1733;
+    box-shadow: 0 0 14px rgba(52,211,153,0.8);
+    transform: scale(1.15);
+  }
+
+  /* ───── K8s Service Layer (separate boxed layer) ───── */
+  .svc-box {
+    position: absolute;
+    background: rgba(30, 70, 110, 0.5);
+    border: 1.5px dashed #4da8ff;
+    border-radius: 8px;
+    padding: 6px 4px;
+    z-index: 4;
+  }
+  .svc-box .svc-label {
+    font-size: 10px; color: #a3c7ef; font-weight: 700;
+    margin-bottom: 3px; letter-spacing: 0.3px;
+  }
+  .svc-box .svc-type {
+    font-size: 8px; color: #6b9fd0; font-family: monospace;
+  }
+  .svc-box .svc-pods {
+    display: flex; gap: 6px; justify-content: center; margin-top: 5px;
+  }
+  .svc-box.active {
+    border-color: #ffd54a; box-shadow: 0 0 10px rgba(255,213,74,0.4);
+  }
+
+  /* Pod */
+  .pod {
+    width: 40px; height: 30px;
+    border-radius: 5px;
+    background: #2b4377;
+    border: 1.5px solid #4a6ba3;
+    font-size: 10px; color: #cdd9ee;
+    display: flex; align-items: center; justify-content: center;
+    font-family: monospace; font-weight: 700;
+    transition: all 0.25s;
+    position: relative;
+  }
+  .pod.active { background: #1d64a6; border-color: #4da8ff; box-shadow: 0 0 8px rgba(77,168,255,0.8); }
+  .pod.success { background: #1d6b4b; border-color: #34d399; box-shadow: 0 0 8px rgba(52,211,153,0.6); }
+  .pod.error { background: #7a2a2a; border-color: #f87171; }
+  .pod.dead {
+    background: #222;
+    border-color: #555;
+    color: #555;
+    text-decoration: line-through;
+    opacity: 0.5;
+  }
+  .pod.new {
+    animation: popIn 0.5s;
+  }
+  @keyframes popIn {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* NodePort strike */
+  .nodeport-strike {
+    position: absolute;
+    top: 20px; right: 20px;
+    padding: 8px 14px;
+    background: rgba(120, 60, 60, 0.2);
+    border: 2px dashed #a04040;
+    border-radius: 8px;
+    color: #d88080;
+    font-size: 11px;
+    font-weight: 600;
+    text-align: center;
+    transform: rotate(-4deg);
+  }
+  .nodeport-strike::before {
+    content: "❌ ";
+  }
+  .nodeport-strike .sub {
+    font-size: 9px; color: #c09090; font-weight: 400; margin-top: 2px;
+  }
+
+  /* Arrows */
+  .arrows {
+    position: absolute; inset: 0;
+    pointer-events: none; z-index: 3;
+  }
+  .arrows line, .arrows path {
+    stroke: #3a4e75; stroke-width: 1.3; fill: none;
+    opacity: 0.45;
+  }
+  .arrows .ws-line {
+    stroke: #34d399; stroke-width: 2; stroke-dasharray: 4 4;
+    opacity: 0.75;
+    animation: wsDash 1.5s linear infinite;
+  }
+  .arrows .ws-line.disconnected {
+    stroke: #f87171; opacity: 0.5; animation: none;
+  }
+  @keyframes wsDash {
+    to { stroke-dashoffset: -16; }
+  }
+
+  /* Moving packet */
+  .packet {
+    position: absolute;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700;
+    z-index: 10;
+    pointer-events: none;
+    color: #0b1733;
+  }
+  .packet.rest     { background: #9bb1d6; }
+  .packet.login    { background: #c378e0; color: #fff; box-shadow: 0 0 8px #c378e0; }
+  .packet.kafka    { background: #ffd54a; color: #3b2300; box-shadow: 0 0 8px #ffd54a; }
+  .packet.websocket{ background: #34d399; box-shadow: 0 0 8px #34d399; }
+  .packet.error    { background: #f87171; color: #fff; box-shadow: 0 0 8px #f87171; }
+
+  /* ───── Tab 2: Browser Mockup ───── */
+  .browser-mockup {
+    position: absolute;
+    top: 20px; left: 20px;
+    width: 240px; height: 360px;
+    background: #1a2441;
+    border: 2px solid #4a6ba3;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+    z-index: 6;
+  }
+  .browser-bar {
+    background: #2b3d63;
+    padding: 6px 8px;
+    display: flex; align-items: center; gap: 5px;
+    border-bottom: 1px solid #1a2441;
+  }
+  .browser-bar .dots { display: flex; gap: 3px; }
+  .browser-bar .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+  }
+  .browser-bar .dot.r { background: #ff5f57; }
+  .browser-bar .dot.y { background: #febc2e; }
+  .browser-bar .dot.g { background: #28c841; }
+  .browser-bar .url {
+    flex: 1;
+    background: #0d1628;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10px;
+    color: #9bb1d6;
+    font-family: monospace;
+  }
+  .browser-screen {
+    padding: 12px;
+    height: calc(100% - 30px);
+    background: #fafafa;
+    color: #333;
+    font-size: 12px;
+  }
+  .browser-screen .title {
+    font-size: 14px; font-weight: 700; color: #1a2441;
+    margin-bottom: 8px; text-align: center;
+  }
+  .browser-screen .section { display: none; }
+  .browser-screen .section.active { display: block; }
+
+  /* Login form */
+  .login-form { padding: 4px; }
+  .login-form label {
+    display: block; font-size: 10px; color: #666; margin-top: 6px;
+  }
+  .login-form input {
+    width: 100%; padding: 5px 7px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 11px;
+    background: #fff;
+  }
+  .login-form button {
+    width: 100%;
+    margin-top: 10px;
+    padding: 7px;
+    background: #4a6ba3;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .login-form .hint {
+    font-size: 9px; color: #888; margin-top: 5px; text-align: center;
+  }
+
+  /* Order screen */
+  .order-screen { padding: 2px; }
+  .order-screen .product {
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 7px;
+    background: #fff;
+  }
+  .order-screen .product .pname { font-weight: 700; font-size: 11px; }
+  .order-screen .product .pprice { color: #666; font-size: 10px; }
+  .order-screen .product .pqty { color: #2a7; font-size: 10px; }
+  .order-screen button {
+    width: 100%;
+    padding: 7px;
+    background: #2a7;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 3px;
+  }
+  .order-screen button:disabled { background: #999; }
+  .order-screen .status {
+    margin-top: 10px;
+    padding: 8px;
+    border-radius: 5px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 600;
+    min-height: 34px;
+  }
+  .order-screen .status.idle { background: #f0f0f0; color: #888; }
+  .order-screen .status.pending { background: #fff4cc; color: #805500; animation: pendingPulse 1.2s infinite; }
+  .order-screen .status.success { background: #ccf2d9; color: #115a2e; }
+  .order-screen .status.error { background: #fcd6d6; color: #7a1a1a; }
+  @keyframes pendingPulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+  .ws-indicator {
+    font-size: 10px;
+    margin-top: 6px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    background: #e0ffe0;
+    color: #2a7;
+    text-align: center;
+  }
+  .ws-indicator.off {
+    background: #ffe0e0; color: #a44;
+  }
+
+  /* ───── Tab 2: DB Tables ───── */
+  .db-panel {
+    position: absolute;
+    top: 20px; right: 20px;
+    width: 300px;
+    background: rgba(20, 30, 55, 0.85);
+    border: 1.5px solid #4a6ba3;
+    border-radius: 10px;
+    padding: 8px;
+    z-index: 6;
+    max-height: 840px;
+    overflow-y: auto;
+  }
+  .db-panel h3 {
+    font-size: 12px; color: #f59e0b;
+    margin-bottom: 6px; text-align: center;
+    font-weight: 700;
+  }
+  .db-table {
+    margin-bottom: 8px;
+    background: #0d1628;
+    border-radius: 6px;
+    padding: 5px;
+  }
+  .db-table-name {
+    font-size: 10px; color: #fbbf24; font-family: monospace;
+    font-weight: 700; margin-bottom: 3px;
+  }
+  .db-table table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+    font-family: monospace;
+  }
+  .db-table th, .db-table td {
+    padding: 2px 4px;
+    text-align: left;
+    border-bottom: 1px solid #2a3a5a;
+  }
+  .db-table th {
+    background: rgba(77, 168, 255, 0.15);
+    color: #9bb1d6;
+    font-size: 9px;
+    font-weight: 600;
+  }
+  .db-table td {
+    color: #d8e2f1;
+  }
+  .db-table td.changed {
+    background: #5a4a10;
+    color: #ffe680;
+    animation: cellFlash 1.5s;
+  }
+  .db-table td.success {
+    background: #1a5a38;
+    color: #9be9b9;
+    animation: cellFlash 1.5s;
+  }
+  @keyframes cellFlash {
+    0% { background: #ffd54a; color: #000; }
+    100% { /* ends at the .changed color */ }
+  }
+  .db-table tr.new-row td {
+    background: #1a3a5a;
+    animation: rowAppear 0.7s;
+  }
+  @keyframes rowAppear {
+    from { background: #ffd54a; color: #000; }
+  }
+
+  /* ───── Tab 2: Services row ───── */
+  .service-node {
+    position: absolute;
+    width: 130px;
+    padding: 6px 4px;
+    border-radius: 8px;
+    background: #1c2d4f;
+    border: 2px solid #2f4370;
+    text-align: center;
+  }
+  .service-node .name { font-size: 12px; font-weight: 700; }
+  .service-node .role { font-size: 9px; color: #9bb1d6; margin-top: 2px; }
+  .service-node .port { font-size: 8px; color: #6b82a8; font-family: monospace; }
+  .service-node .pods {
+    display: flex; gap: 4px; justify-content: center; margin-top: 5px;
+  }
+
+  /* ───── Tab 2: MSA Node wrapper (worker VM hosting services) ───── */
+  .msa-node-wrapper {
+    position: absolute;
+    border: 2.5px dashed #6b9fd0;
+    border-radius: 14px;
+    background: rgba(30, 60, 110, 0.08);
+    z-index: 1;
+    pointer-events: none;
+  }
+  .msa-node-wrapper .node-label {
+    position: absolute;
+    top: -11px; left: 20px;
+    background: #0d1b38; padding: 0 10px;
+    color: #6b9fd0; font-size: 11px; font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .msa-node-wrapper .node-sub {
+    position: absolute;
+    bottom: 6px; right: 14px;
+    color: #4a6ba3; font-size: 9px; font-style: italic;
+  }
+
+  /* ───── Tab 2: Kafka area ───── */
+  .kafka-area {
+    position: absolute;
+    background: linear-gradient(135deg, #2d1a3a 0%, #3a2147 100%);
+    border: 2px solid #8a54b8;
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+  }
+  .kafka-title {
+    font-size: 13px; font-weight: 700; color: #e8c7ff;
+    text-align: center; margin-bottom: 6px;
+  }
+  .kafka-body {
+    display: grid;
+    grid-template-columns: 150px 1fr;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+  }
+  .kafka-roles {
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .kafka-role {
+    background: rgba(0,0,0,0.25);
+    border: 1px solid #7a478e;
+    border-radius: 6px;
+    padding: 6px 6px;
+    font-size: 10px;
+    text-align: center;
+  }
+  .kafka-role b { color: #f1a8ff; font-size: 11px; }
+  .kafka-role .desc { color: #c8a7d4; font-size: 9px; margin-top: 2px; }
+
+  .kafka-topics-wrap {
+    background: rgba(0,0,0,0.18);
+    border: 1px solid #4a2a5a;
+    border-radius: 8px;
+    padding: 6px 7px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow-y: auto;
+  }
+  .kafka-topics-head {
+    font-size: 10px; color: #d9b4ec; letter-spacing: 0.5px;
+    font-weight: 700; padding: 2px 2px 4px;
+    border-bottom: 1px dashed #4a2a5a; margin-bottom: 2px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .kafka-topics-head .sub {
+    font-size: 9px; color: #8a6b95; font-style: italic;
+    font-weight: 400; letter-spacing: 0;
+  }
+  .kafka-topic {
+    display: grid;
+    grid-template-columns: 180px 1fr auto;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid #65386e;
+    border-radius: 5px;
+    padding: 3px 7px;
+    min-height: 26px;
+    transition: all 0.25s;
+  }
+  .kafka-topic .tname {
+    font-size: 9.5px; font-weight: 700; color: #c9a4e0;
+    font-family: monospace;
+  }
+  .kafka-topic .tqueue {
+    display: flex; gap: 3px; flex-wrap: wrap;
+    min-height: 14px;
+  }
+  .kafka-topic .msg-dot {
+    width: 11px; height: 11px; border-radius: 2px;
+    background: #ffd54a;
+    box-shadow: 0 0 6px rgba(255,213,74,0.7);
+    animation: dotPulse 0.7s ease-out;
+  }
+  .kafka-topic .tprocess-btn {
+    padding: 3px 10px;
+    background: #2a1a35;
+    color: #6a5975;
+    border: 1px solid #3d2a48;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    cursor: not-allowed;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+  .kafka-topic.active {
+    border-color: #ffd54a;
+    box-shadow: 0 0 12px rgba(255,213,74,0.45);
+    background: rgba(255,213,74,0.12);
+  }
+  .kafka-topic.active .tname { color: #ffe680; }
+  .kafka-topic.ready .tprocess-btn {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    border-color: #0a8f66;
+    cursor: pointer;
+    animation: btnPulse 1.1s infinite;
+  }
+  .kafka-topic.ready .tprocess-btn:hover { filter: brightness(1.12); transform: scale(1.04); }
+  @keyframes btnPulse {
+    0%,100% { box-shadow: 0 0 0 rgba(52,211,153,0); }
+    50% { box-shadow: 0 0 14px rgba(52,211,153,0.85); }
+  }
+  @keyframes dotPulse {
+    0% { transform: scale(0); opacity: 0; }
+    60% { transform: scale(1.3); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* Legend */
+  .legend {
+    font-size: 11px; color: #9bb1d6; margin-top: 8px;
+    display: flex; flex-wrap: wrap; gap: 10px;
+  }
+  .legend span {
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .legend .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+
+  /* ───── Controls / Log ───── */
+  .controls { display: flex; flex-direction: column; gap: 9px; }
+  .btn {
+    padding: 9px 10px;
+    border-radius: 8px;
+    border: none;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+    transition: all 0.15s;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-happy    { background: linear-gradient(135deg, #10b981, #059669); }
+  .btn-fail     { background: linear-gradient(135deg, #f59e0b, #d97706); }
+  .btn-cancel   { background: linear-gradient(135deg, #ef4444, #dc2626); }
+  .btn-reset    { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+  .btn-info     { background: linear-gradient(135deg, #4da8ff, #1d64a6); }
+  .btn-kill     { background: linear-gradient(135deg, #78716c, #44403c); }
+  .btn:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.1); }
+
+  .status-bar {
+    display: flex; gap: 8px; margin-bottom: 8px;
+    font-size: 11px;
+  }
+  .status-item {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    padding: 6px 8px;
+    border-radius: 6px;
+    border-left: 3px solid #4da8ff;
+  }
+  .status-item b { color: #e8edf5; display: block; font-size: 13px; }
+  .status-item small { color: #9bb1d6; font-size: 10px; }
+
+  .log {
+    height: 340px;
+    overflow-y: auto;
+    font-family: "Menlo", Consolas, monospace;
+    font-size: 11px;
+    background: #060d1f;
+    border-radius: 6px;
+    padding: 8px;
+    line-height: 1.5;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .log .l-sys    { color: #9bb1d6; }
+  .log .l-browser{ color: #c378e0; }
+  .log .l-ingress{ color: #e5a66e; }
+  .log .l-gateway{ color: #4b9e6b; }
+  .log .l-user   { color: #94a3ff; }
+  .log .l-order  { color: #4da8ff; }
+  .log .l-product{ color: #fbbf24; }
+  .log .l-deliv  { color: #f472b6; }
+  .log .l-orch   { color: #d97bff; }
+  .log .l-kafka  { color: #ffd54a; }
+  .log .l-ws     { color: #34d399; }
+  .log .l-db     { color: #fb923c; }
+  .log .l-err    { color: #f87171; font-weight: 700; }
+  .log .l-ok     { color: #34d399; font-weight: 700; }
+
+  .group-label {
+    position: absolute;
+    font-size: 9px;
+    color: #6b82a8;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    font-weight: 600;
+    z-index: 2;
+    background: rgba(11, 23, 51, 0.85);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+</style>
+</head>
+<body>
+<!-- ======= OSD floating bar (injected) ======= -->
+<div id="osd-bar" role="navigation" aria-label="블로그 네비게이션">
+  <a href="../index.html" class="osd-bar__brand" title="블로그 홈">◆ Open Skill Diary</a>
+  <div class="osd-bar__title">MSA · Kubernetes · WebSocket 통합 시뮬레이터</div>
+  <div class="osd-bar__actions">
+    <a href="../index.html">← 목록</a>
+    <button type="button" id="osd-theme-toggle" aria-label="테마 전환">테마</button>
+  </div>
+</div>
+<script>
+  (function(){
+    var btn = document.getElementById('osd-theme-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      var cur = document.documentElement.getAttribute('data-osd-theme') || 'dark';
+      var next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-osd-theme', next);
+      try { localStorage.setItem('blog-theme', next); } catch(e){}
+    });
+  })();
+</script>
+<!-- ======= /OSD floating bar ======= -->
+
+<script>
+  // Wrap original body content so the light-mode filter applies only to that wrapper,
+  // not to the floating OSD bar.
+  (function(){
+    function wrap(){
+      var bar = document.getElementById('osd-bar');
+      var wrapper = document.createElement('div');
+      wrapper.id = 'osd-content-wrapper';
+      wrapper.style.cssText = 'transition: filter .25s;';
+      var nodes = Array.prototype.slice.call(document.body.childNodes);
+      nodes.forEach(function(n){
+        if (n === bar) return;
+        wrapper.appendChild(n);
+      });
+      // Re-insert wrapper at the end (after the bar)
+      document.body.appendChild(wrapper);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wrap, { once: true });
+    } else {
+      wrap();
+    }
+  })();
+</script>
+
+
+<header>
+  <h1>Chapter 4 — 쿠버네티스 · MSA · WebSocket 시뮬레이터</h1>
+  <p>Ingress · Service (ClusterIP) · KRaft · Replicas=2 · Saga · DB 라이브뷰</p>
+</header>
+
+<div class="tabs" style="max-width:1560px; margin:0 auto 12px;">
+  <button class="tab-btn active" data-tab="k8s">🏗 쿠버네티스 세상</button>
+  <button class="tab-btn" data-tab="msa">🛒 MSA 비즈니스 흐름</button>
+  <button class="tab-btn" data-tab="idem">🔁 멱등성 테스트 (messageId)</button>
+  <button class="tab-btn" data-tab="tunnel">🚇 Ingress 터널 (Minikube)</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- Tab 1: Kubernetes World                                           -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="tab-content active" id="tab-k8s">
+<div class="layout">
+  <div class="panel">
+    <div class="scene" id="scene-k8s">
+      <div class="ns-label">K8S NAMESPACE: <b>metacoding</b> · 외부 진입 = Ingress 단일 경로</div>
+
+      <!-- Kubernetes Node wrapper (worker VM that hosts ALL Pods, including Ingress Controller) -->
+      <div class="k8s-node-wrapper" style="top:60px; left:8px; right:8px; bottom:10px;">
+        <div class="node-label">🖥 Kubernetes Node (worker VM) — 모든 Pod는 이 안에서 실행됨</div>
+        <div class="node-sub">Ingress Controller도 Pod이므로 Node 내부에 위치</div>
+      </div>
+
+      <!-- ingress-nginx namespace sub-wrapper (inside Node) -->
+      <div class="ns-wrapper ns-ingress" style="top:78px; left:290px; width:310px; height:70px;">
+        <div class="ns-wrapper-label">ns: ingress-nginx</div>
+      </div>
+
+      <!-- Group labels -->
+      <div class="group-label" style="top:6px; left:30px;">[A] 외부 (사용자 PC)</div>
+      <div class="group-label" style="top:6px; left:300px;">[B] Node 내부: Ingress Controller Pod</div>
+      <div class="group-label" style="top:300px; left:14px;">[C] 백엔드 서비스 (각각 Service → Pod 2개)</div>
+      <div class="group-label" style="top:490px; left:14px;">[D] 내부 전용 (Orchestrator · Kafka KRaft · DB)</div>
+
+      <!-- Browser + Frontend (OUTSIDE cluster — CDN/로컬) -->
+      <div class="node browser" id="k-browser" style="top:24px; left:40px; width:200px;">
+        <div class="name">🌐 Browser + Frontend</div>
+        <div class="role">외부 (CDN/로컬 static)</div>
+        <div class="auth-badge" id="k-browser-auth">🔓 JWT 없음</div>
+        <div style="font-size:9px; color:#6b9fd0; margin-top:4px;">index.html · API_BASE=http://metacoding.local</div>
+      </div>
+
+      <!-- NodePort strike -->
+      <div class="nodeport-strike">
+        NodePort 미사용
+        <div class="sub">(외부 → 오직 Ingress로)</div>
+      </div>
+
+      <!-- Ingress Controller Pod (INSIDE Node, in ingress-nginx namespace) -->
+      <div class="node ingress" id="k-ingress" style="top:95px; left:310px; width:420px;">
+        <div class="name">🚪 Ingress Controller (Pod)</div>
+        <div class="role">Nginx Ingress Controller · hostPort 80/443 · CORS enabled</div>
+        <div class="port">host: metacoding.local · path 라우팅 → 각 ClusterIP Service 직접</div>
+      </div>
+
+      <!-- Ingress Rule summary badge -->
+      <div class="svc-box" id="k-ingress-rules" style="top:170px; left:320px; width:400px; height:110px; border-color:#b1794b; background:rgba(61,42,31,0.3);">
+        <div class="svc-label" style="color:#e5a66e;">📜 Ingress Rules (path 라우팅)</div>
+        <div style="font-size:10px; color:#e5c38f; line-height:1.5; margin-top:6px; font-family:monospace;">
+          /api/login       → user-service:8083<br/>
+          /api/products    → product-service:8082<br/>
+          /api/orders · /ws → order-service:8081<br/>
+          /api/deliveries  → delivery-service:8084
+        </div>
+      </div>
+
+      <!-- Backend services with explicit Service layer -->
+      <div class="svc-box" id="k-svc-user" style="top:320px; left:20px; width:182px; height:155px;">
+        <div class="svc-label">user-service</div>
+        <div class="svc-type">ClusterIP :8083</div>
+        <div class="svc-pods" style="margin-top:30px;">
+          <div class="pod" id="k-pod-user-1">P1</div>
+          <div class="pod" id="k-pod-user-2">P2</div>
+        </div>
+        <div style="font-size:10px; color:#6b9fd0; margin-top:10px; line-height:1.35;">
+          로그인 · JWT 발급<br/>
+          <span style="font-size:9px; color:#4a7eb0;">비즈니스: 인증/인가</span>
+        </div>
+      </div>
+
+      <div class="svc-box" id="k-svc-product" style="top:320px; left:212px; width:182px; height:155px;">
+        <div class="svc-label">product-service</div>
+        <div class="svc-type">ClusterIP :8082</div>
+        <div class="svc-pods" style="margin-top:30px;">
+          <div class="pod" id="k-pod-product-1">P1</div>
+          <div class="pod" id="k-pod-product-2">P2</div>
+        </div>
+        <div style="font-size:10px; color:#6b9fd0; margin-top:10px; line-height:1.35;">
+          재고 차감/복구<br/>
+          <span style="font-size:9px; color:#4a7eb0;">Kafka consumer/producer</span>
+        </div>
+      </div>
+
+      <div class="svc-box" id="k-svc-order" style="top:320px; left:404px; width:182px; height:155px;">
+        <div class="svc-label">order-service ★</div>
+        <div class="svc-type">ClusterIP :8081</div>
+        <div class="svc-pods" style="margin-top:30px;">
+          <div class="pod" id="k-pod-order-1">P1</div>
+          <div class="pod" id="k-pod-order-2">P2</div>
+        </div>
+        <div style="font-size:10px; color:#6b9fd0; margin-top:10px; line-height:1.35;">
+          주문 CRUD · WebSocket<br/>
+          <span style="font-size:9px; color:#4a7eb0;">JWT 검증 필터</span>
+        </div>
+      </div>
+
+      <div class="svc-box" id="k-svc-delivery" style="top:320px; left:596px; width:182px; height:155px;">
+        <div class="svc-label">delivery-service</div>
+        <div class="svc-type">ClusterIP :8084</div>
+        <div class="svc-pods" style="margin-top:30px;">
+          <div class="pod" id="k-pod-delivery-1">P1</div>
+          <div class="pod" id="k-pod-delivery-2">P2</div>
+        </div>
+        <div style="font-size:10px; color:#6b9fd0; margin-top:10px; line-height:1.35;">
+          배송 생성/완료<br/>
+          <span style="font-size:9px; color:#4a7eb0;">delivery_tb 담당</span>
+        </div>
+      </div>
+
+      <!-- Orchestrator + Kafka (KRaft breakdown) + DB  -->
+      <div class="svc-box" id="k-svc-orchestrator" style="top:510px; left:20px; width:230px; height:155px;">
+        <div class="svc-label">orchestrator-service</div>
+        <div class="svc-type">ClusterIP :8085 · Saga 조율자</div>
+        <div class="svc-pods" style="margin-top:22px;">
+          <div class="pod" id="k-pod-orchestrator-1">P1</div>
+          <div class="pod" id="k-pod-orchestrator-2">P2</div>
+        </div>
+        <div style="font-size:10px; color:#6b9fd0; margin-top:8px; line-height:1.35;">
+          Kafka 감시 → 다음 명령 발행<br/>
+          <span style="font-size:9px; color:#4a7eb0;">외부 접근 불가 (내부 전용)</span>
+        </div>
+      </div>
+
+      <div class="svc-box" id="k-svc-kafka" style="top:510px; left:260px; width:310px; height:155px; border-color:#8a54b8;">
+        <div class="svc-label" style="color:#e8c7ff;">kafka-service (KRaft 모드)</div>
+        <div class="svc-type">ClusterIP · replicas=1 · ZooKeeper 없음</div>
+        <div class="kraft-roles">
+          <div class="kraft-role">
+            <b>Broker :9092</b>
+            <div class="desc">메시지<br/>송·수신<br/>(Producer/Consumer)</div>
+          </div>
+          <div class="kraft-role">
+            <b>Controller :9093</b>
+            <div class="desc">메타데이터<br/>Raft 합의<br/>(리더 선출)</div>
+          </div>
+        </div>
+        <div class="svc-pods" style="margin-top:5px;">
+          <div class="pod" id="k-pod-kafka-1" style="background:#4a2a5a; border-color:#8a54b8;">K1</div>
+        </div>
+      </div>
+
+      <div class="svc-box" id="k-svc-db" style="top:510px; left:580px; width:190px; height:155px; border-color:#d97706;">
+        <div class="svc-label" style="color:#fbbf24;">db-service</div>
+        <div class="svc-type">ClusterIP :3306 · MySQL</div>
+        <div class="svc-pods" style="margin-top:22px;">
+          <div class="pod" id="k-pod-db-1" style="background:#5a3a1a; border-color:#d97706;">D1</div>
+        </div>
+        <div style="font-size:10px; color:#e5c38f; margin-top:8px; line-height:1.35;">
+          공유 스키마 (교육용)<br/>
+          <span style="font-size:9px; color:#b07820;">product_tb · order_tb · …</span>
+        </div>
+      </div>
+
+      <svg class="arrows" id="k-arrows"></svg>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#9bb1d6"></span>HTTP 요청</span>
+      <span><span class="dot" style="background:#c378e0"></span>로그인</span>
+      <span><span class="dot" style="background:#ffd54a"></span>Kafka 메시지</span>
+      <span><span class="dot" style="background:#f87171"></span>Pod 장애</span>
+      <span><span style="display:inline-block; width:14px; border-top:2px dashed #4da8ff;"></span>Service(ClusterIP) 레이어</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🏗 쿠버네티스 관점 실험</h2>
+    <div class="status-bar">
+      <div class="status-item">
+        <small>현재 단계</small>
+        <b id="k-step-info">대기중</b>
+      </div>
+      <div class="status-item">
+        <small>요청 카운트</small>
+        <b id="k-req-count">0</b>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-info" id="k-btn-login" onclick="k8sLogin()">▶ 로그인 요청 1번 (요청 + 응답)</button>
+      <button class="btn btn-happy" id="k-btn-step" onclick="k8sStepByStep()">⏭ 주문 흐름 단계별 실행 (클릭 1회 = 1단계)</button>
+      <button class="btn btn-happy" id="k-btn-full" onclick="k8sFullOrderFlow()">▶ 주문 전체 흐름 (자동)</button>
+      <button class="btn btn-info" id="k-btn-10" onclick="k8sTenOrders()">▶▶ 주문 요청 10번 (로드밸런싱 체험)</button>
+      <button class="btn btn-kill" id="k-btn-kill" onclick="k8sKillPod()">💀 order Pod1 강제종료 → 재생성</button>
+      <button class="btn btn-reset" onclick="k8sReset()">🔄 리셋</button>
+    </div>
+
+    <div style="margin-top:10px; padding:8px; background:rgba(77,168,255,0.1); border-left:3px solid #4da8ff; border-radius:4px; font-size:11px; line-height:1.55;">
+      <b>💡 포인트</b><br/>
+      • <b>프론트엔드는 클러스터 밖</b> — CDN/로컬 static 서버에서 실행.<br/>
+      • Ingress가 직접 <b>path 기반 라우팅</b>으로 각 백엔드 Service에 꽂습니다 (게이트웨이 서비스 없음).<br/>
+      • CORS는 Ingress annotation에서 일괄 처리.<br/>
+      • 각 서비스의 <b>Service(점선 박스)</b>가 2개 Pod으로 로드밸런싱.<br/>
+      • Orchestrator · Kafka · DB는 외부에서 접근 불가(내부 전용).
+    </div>
+
+    <h2 style="margin-top:14px;">로그</h2>
+    <div class="log" id="k-log"></div>
+  </div>
+</div>
+</div><!-- /tab-k8s -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- Tab 2: MSA Business Flow                                          -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="tab-content" id="tab-msa">
+<div class="layout">
+  <div class="panel">
+    <div class="scene" id="scene-msa">
+      <div class="ns-label">K8S NAMESPACE: <b>metacoding</b> · 비즈니스 흐름 시나리오</div>
+
+      <!-- Group labels -->
+      <div class="group-label" style="top:6px; left:22px;">[A] 사용자 브라우저</div>
+      <div class="group-label" style="top:6px; left:290px;">[B] Kubernetes Node — 마이크로서비스 (각 Pod 2개)</div>
+      <div class="group-label" style="top:6px; right:340px;">[C] MySQL DB 상태</div>
+      <div class="group-label" style="top:400px; left:22px;">[D] Kafka (KRaft) + Orchestrator</div>
+
+      <!-- [Node Wrapper] Kubernetes Node hosting all microservice Pods -->
+      <div class="msa-node-wrapper" style="top:20px; left:275px; width:335px; height:370px;">
+        <div class="node-label">🖥 Kubernetes Node (worker VM)</div>
+        <div class="node-sub">User · Order · Product · Delivery 모두 이 Node 위에서 동작</div>
+      </div>
+
+      <!-- [A] Browser Mockup -->
+      <div class="browser-mockup" id="m-browser">
+        <div class="browser-bar">
+          <div class="dots">
+            <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+          </div>
+          <div class="url">http://metacoding.local</div>
+        </div>
+        <div class="browser-screen">
+          <!-- Login section -->
+          <div class="section active" id="scr-login">
+            <div class="title">🔐 로그인</div>
+            <div class="login-form">
+              <label>username</label>
+              <input id="m-username" value="ssar" readonly />
+              <label>password</label>
+              <input id="m-password" type="password" value="1234" readonly />
+              <button id="m-login-btn">로그인</button>
+              <div class="hint">예제 계정: ssar / 1234</div>
+            </div>
+          </div>
+          <!-- Order section -->
+          <div class="section" id="scr-order">
+            <div class="title">🛒 상품 주문</div>
+            <div class="order-screen">
+              <div class="product" id="m-prod-macbook">
+                <div class="pname">MacBook Pro</div>
+                <div class="pprice">₩ 2,500,000</div>
+                <div class="pqty">재고: <span id="m-qty-1">10</span></div>
+                <button id="m-order-btn" onclick="m_runHappyPath()">주문하기</button>
+              </div>
+              <div class="status idle" id="m-status">주문을 해보세요</div>
+              <div class="ws-indicator" id="m-ws-ind">🟢 WebSocket 연결됨 (/topic/orders/1)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- [B] Services aligned in 2×2 grid inside the Node box -->
+      <div class="service-node" id="m-user" style="top:50px; left:295px; width:140px; background:#1d2f4f; border-color:#94a3ff;">
+        <div class="name">👤 User</div>
+        <div class="role">로그인 · JWT</div>
+        <div class="port">:8083</div>
+        <div class="pods">
+          <div class="pod" id="m-pod-user-1">P1</div>
+          <div class="pod" id="m-pod-user-2">P2</div>
+        </div>
+      </div>
+
+      <div class="service-node" id="m-order" style="top:50px; left:450px; width:140px; background:#1d2f4f; border-color:#4da8ff;">
+        <div class="name">📦 Order ★</div>
+        <div class="role">주문 · WebSocket</div>
+        <div class="port">:8081</div>
+        <div class="ws-comp" id="m-ws-comp" title="WebSocketHandler (STOMP Broker)">📡 WebSocketHandler</div>
+        <div class="pods">
+          <div class="pod" id="m-pod-order-1">P1</div>
+          <div class="pod" id="m-pod-order-2">P2</div>
+        </div>
+      </div>
+
+      <div class="service-node" id="m-product" style="top:225px; left:295px; width:140px; background:#3d2f15; border-color:#fbbf24;">
+        <div class="name">📦 Product</div>
+        <div class="role">재고 차감</div>
+        <div class="port">:8082</div>
+        <div class="pods">
+          <div class="pod" id="m-pod-product-1">P1</div>
+          <div class="pod" id="m-pod-product-2">P2</div>
+        </div>
+      </div>
+
+      <div class="service-node" id="m-delivery" style="top:225px; left:450px; width:140px; background:#3d1f2f; border-color:#f472b6;">
+        <div class="name">🚚 Delivery</div>
+        <div class="role">배송 생성/완료</div>
+        <div class="port">:8084</div>
+        <div class="pods">
+          <div class="pod" id="m-pod-delivery-1">P1</div>
+          <div class="pod" id="m-pod-delivery-2">P2</div>
+        </div>
+      </div>
+
+      <!-- Orchestrator (separate, beside the Node box) -->
+      <div class="service-node orchestrator" id="m-orchestrator" style="top:50px; left:630px; width:170px; background:#3a2047; border-color:#c378e0;">
+        <div class="name">🎼 Orchestrator</div>
+        <div class="role" style="color:#e8c7ff;">Saga 지휘자</div>
+        <div class="port">:8085</div>
+        <div class="pods">
+          <div class="pod" id="m-pod-orchestrator-1">P1</div>
+          <div class="pod" id="m-pod-orchestrator-2">P2</div>
+        </div>
+        <div style="font-size:9px; color:#d9b4ec; margin-top:5px; font-style:italic; line-height:1.3;">
+          Kafka 9개 큐 감시<br/>→ 다음 명령 발행
+        </div>
+      </div>
+
+      <!-- [D] Kafka area at bottom — roles on left, topics list on right -->
+      <div class="kafka-area" id="m-kafka" style="top:425px; left:20px; width:820px; height:440px;">
+        <div class="kafka-title">⚙ Kafka (KRaft 모드) — 메시지 큐</div>
+        <div class="kafka-body">
+          <div class="kafka-roles">
+            <div class="kafka-role">
+              <b>Broker :9092</b>
+              <div class="desc">메시지 송수신</div>
+            </div>
+            <div class="kafka-role">
+              <b>Controller :9093</b>
+              <div class="desc">메타데이터 Raft 합의</div>
+            </div>
+            <div class="kafka-role" style="border-color:#4da8ff; background:rgba(77,168,255,0.1);">
+              <b style="color:#9ccaff;">📋 Topics</b>
+              <div class="desc" style="color:#b5cff0;">9개 등록</div>
+            </div>
+          </div>
+          <div class="kafka-topics-wrap">
+            <div class="kafka-topics-head">
+              <span>우측 ▶ 버튼으로 단계별 처리</span>
+              <span class="sub">command/event 수신 시 쌓임 + 점등</span>
+            </div>
+            <div class="kafka-topics" id="m-kafka-topics"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- [C] DB Panel -->
+      <div class="db-panel" id="m-db">
+        <h3>🗄 MySQL 상태 (라이브)</h3>
+
+        <div class="db-table">
+          <div class="db-table-name">product_tb</div>
+          <table id="t-product">
+            <thead><tr><th>id</th><th>product_name</th><th>quantity</th><th>price</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>MacBook Pro</td><td id="c-prod-1-qty">10</td><td>2,500,000</td></tr>
+              <tr><td>2</td><td>iPhone 15</td><td id="c-prod-2-qty">0</td><td>1,300,000</td></tr>
+              <tr><td>3</td><td>AirPods</td><td id="c-prod-3-qty">10</td><td>300,000</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="db-table">
+          <div class="db-table-name">order_tb</div>
+          <table id="t-order">
+            <thead><tr><th>id</th><th>user</th><th>prod</th><th>qty</th><th>status</th></tr></thead>
+            <tbody id="tb-order">
+              <!-- rows added dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="db-table">
+          <div class="db-table-name">delivery_tb</div>
+          <table id="t-delivery">
+            <thead><tr><th>id</th><th>order</th><th>address</th><th>status</th></tr></thead>
+            <tbody id="tb-delivery"></tbody>
+          </table>
+        </div>
+
+        <div class="db-table">
+          <div class="db-table-name">processed_message_tb <span style="color:#9bb1d6; font-size:9px;">(멱등성)</span></div>
+          <table id="t-processed">
+            <thead><tr><th>message_id</th><th>service</th></tr></thead>
+            <tbody id="tb-processed"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <svg class="arrows" id="m-arrows"></svg>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#c378e0"></span>로그인/JWT</span>
+      <span><span class="dot" style="background:#9bb1d6"></span>REST</span>
+      <span><span class="dot" style="background:#ffd54a"></span>Kafka 메시지</span>
+      <span><span style="display:inline-block; width:14px; border-top:2px dashed #34d399;"></span>WebSocket 상시연결</span>
+      <span><span class="dot" style="background:#f87171"></span>실패/보상</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🛒 비즈니스 시나리오</h2>
+    <div class="status-bar">
+      <div class="status-item">
+        <small>현재 단계</small>
+        <b id="m-step-info">대기중</b>
+      </div>
+      <div class="status-item">
+        <small>Kafka 누적 메시지</small>
+        <b id="m-msg-count">0</b>
+      </div>
+    </div>
+
+    <!-- Unified next-step button (alternative to clicking each topic's ▶) -->
+    <button class="btn-next-step" id="m-btn-next" onclick="m_clickNext()" disabled>
+      <span id="m-btn-next-label"><span class="step-num">—</span>시나리오를 먼저 시작하세요</span>
+      <span class="step-sub" id="m-btn-next-sub">좌측 토픽의 ▶ 버튼을 눌러도 동일하게 진행됩니다</span>
+    </button>
+
+    <div class="controls">
+      <button class="btn btn-happy" id="m-btn-happy" onclick="m_runHappyPath()">▶ 주문 (Happy Path)</button>
+      <button class="btn btn-fail" id="m-btn-fail" onclick="m_runFailPath()">⚠ 재고부족 (iPhone 15) → 보상</button>
+      <button class="btn btn-cancel" id="m-btn-cancel" onclick="m_runCancelPath()">✖ 주문 취소 (배송 후)</button>
+      <button class="btn btn-reset" onclick="m_reset()">🔄 리셋</button>
+    </div>
+
+    <div style="margin-top:10px; padding:8px; background:rgba(52,211,153,0.1); border-left:3px solid #34d399; border-radius:4px; font-size:11px; line-height:1.55;">
+      <b>💡 사용법 & 관찰 포인트</b><br/>
+      • <b>반드시 브라우저의 "로그인" 버튼을 먼저 누르세요</b> (JWT 획득) — 로그인 없이 시나리오 클릭 시 <b>order-service의 JwtVerifier가 401 반환</b><br/>
+      • 시나리오 버튼 클릭 → Kafka에 <b>첫 메시지가 적재</b>되며 해당 토픽에 <b>🟡 불이 들어옴</b><br/>
+      • 우측 초록 <b>▶ N단계 버튼</b>이 활성화됨 → 클릭할 때마다 한 단계씩 진행<br/>
+      • 단계마다 <b>소비→처리→다음 토픽 적재</b>가 순서대로 실행<br/>
+      • <b>DB 테이블</b>: 재고/상태 실시간 변화 · <b>processed_message_tb</b> 멱등성
+    </div>
+
+    <h2 style="margin-top:14px;">로그</h2>
+    <div class="log" id="m-log"></div>
+  </div>
+</div>
+</div><!-- /tab-msa -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- Tab 3: Ingress Tunnel (Minikube)                                  -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="tab-content" id="tab-tunnel">
+<div class="layout">
+  <div class="panel">
+    <div class="scene" id="scene-tunnel">
+      <div class="ns-label">MINIKUBE (docker driver) · <b>minikube tunnel</b> 로 Ingress 진입</div>
+
+      <!-- [LEFT] Host Machine (사용자 PC) -->
+      <div class="host-machine" style="top:50px; left:20px; width:340px; height:620px;">
+        <div class="host-label">💻 Host Machine (사용자 PC)</div>
+        <div class="host-sub">macOS / Windows / Linux</div>
+      </div>
+
+      <!-- Browser -->
+      <div class="t-card t-browser" id="t-browser"
+           style="top:90px; left:60px; width:260px; height:80px;">
+        <div class="t-title">🌐 Browser</div>
+        <div class="t-desc">사용자가 주소창에 입력</div>
+        <div class="t-meta">http://metacoding.local</div>
+      </div>
+
+      <!-- /etc/hosts -->
+      <div class="t-card t-hosts" id="t-hosts"
+           style="top:200px; left:60px; width:260px; height:90px;">
+        <div class="t-title">📄 /etc/hosts</div>
+        <div class="t-desc">도메인 → IP 로컬 매핑</div>
+        <div class="t-meta">127.0.0.1  metacoding.local</div>
+      </div>
+
+      <!-- minikube tunnel process -->
+      <div class="t-card t-tunnel" id="t-tunnel"
+           style="top:320px; left:60px; width:260px; height:110px;">
+        <div class="t-title">🚇 minikube tunnel (프로세스)</div>
+        <div class="t-desc">
+          Host의 127.0.0.1:80/443을 LISTEN<br/>
+          → Minikube 컨테이너로 포워딩
+        </div>
+        <div class="t-meta">$ minikube tunnel</div>
+      </div>
+
+      <!-- Info note -->
+      <div class="t-card" id="t-note-host"
+           style="top:460px; left:60px; width:260px; height:180px; background:rgba(255,213,74,0.08); border-color:#b58f3a;">
+        <div class="t-title" style="color:#ffd54a;">💡 왜 터널이 필요할까?</div>
+        <div class="t-desc" style="text-align:left; line-height:1.6; margin-top:6px;">
+          Docker driver에서 Minikube는<br/>
+          <b style="color:#7ec0ff;">격리된 컨테이너</b> 안에서 돕니다.<br/><br/>
+          Host에서 컨테이너 내부 Node의<br/>
+          포트 80/443으로 바로 못 붙기 때문에,<br/>
+          <b style="color:#e5a66e;">minikube tunnel</b> 이 다리 역할을 함.
+        </div>
+      </div>
+
+      <!-- Tunnel pipe (visual bridge between Host and VM) -->
+      <div class="tunnel-pipe" id="t-pipe"
+           style="top:365px; left:320px; width:110px;">
+        ━━ tunnel ━━▶
+      </div>
+
+      <!-- [RIGHT] Minikube VM / Docker container -->
+      <div class="mk-vm" style="top:50px; left:440px; right:20px; height:620px;">
+        <div class="mk-label">📦 Minikube VM (docker container)</div>
+        <div class="mk-sub">$ minikube ip · 격리된 리눅스 환경</div>
+      </div>
+
+      <!-- Kubernetes Node wrapper inside VM -->
+      <div class="k8s-node-wrapper"
+           style="top:100px; left:460px; right:40px; height:550px;">
+        <div class="node-label">🖥 Kubernetes Node (worker)</div>
+        <div class="node-sub">모든 Pod가 여기서 실행</div>
+      </div>
+
+      <!-- ns: ingress-nginx -->
+      <div class="ns-wrapper ns-ingress"
+           style="top:140px; left:480px; width:560px; height:150px;">
+        <div class="ns-wrapper-label">ns: ingress-nginx</div>
+      </div>
+
+      <!-- Ingress Controller Pod -->
+      <div class="t-card t-ingress" id="t-ingress"
+           style="top:170px; left:520px; width:320px; height:110px;">
+        <div class="t-title">🚪 Ingress Controller Pod (nginx)</div>
+        <div class="t-desc">
+          hostPort 로 Node 포트 80/443 점유<br/>
+          → 트래픽 수신 후 Ingress 규칙 매칭
+        </div>
+        <div class="t-meta">image: registry.k8s.io/ingress-nginx/controller</div>
+      </div>
+
+      <!-- hostPort badge on ingress -->
+      <div class="hostport-badge" style="top:160px; left:860px;">
+        hostPort: 80 / 443
+      </div>
+
+      <!-- Ingress rule card -->
+      <div class="t-card" id="t-rule"
+           style="top:170px; left:860px; width:170px; height:110px; background:rgba(77,168,255,0.06); border:1.5px dashed #4da8ff;">
+        <div class="t-title" style="font-size:11px;">📜 Ingress Rule</div>
+        <div class="t-desc" style="font-size:9px; text-align:left; margin-top:4px; font-family:monospace;">
+          host: metacoding.local<br/>
+          /api/login    → user-svc<br/>
+          /api/orders · /ws → order-svc<br/>
+          /api/products → product-svc
+        </div>
+      </div>
+
+      <!-- ns: metacoding (application namespace) -->
+      <div class="ns-wrapper" style="top:320px; left:480px; width:560px; height:310px; border-color:#4da8ff;">
+        <div class="ns-wrapper-label" style="color:#7ec0ff;">ns: metacoding (애플리케이션)</div>
+      </div>
+
+      <!-- ClusterIP Service -->
+      <div class="t-card t-svc" id="t-svc"
+           style="top:360px; left:540px; width:200px; height:100px;">
+        <div class="t-title" style="color:#a3c7ef;">🔀 user-service (예시)</div>
+        <div class="t-desc" style="color:#6b9fd0;">Type: ClusterIP</div>
+        <div class="t-meta" style="color:#6b9fd0;">:8083 → Pods</div>
+      </div>
+
+      <!-- App Pods -->
+      <div class="t-card t-pod" id="t-pod-1"
+           style="top:380px; left:780px; width:100px; height:60px;">
+        <div class="t-title" style="font-size:11px;">Pod P1</div>
+        <div class="t-meta" style="color:#c4d4ec;">user</div>
+      </div>
+      <div class="t-card t-pod" id="t-pod-2"
+           style="top:380px; left:900px; width:100px; height:60px;">
+        <div class="t-title" style="font-size:11px;">Pod P2</div>
+        <div class="t-meta" style="color:#c4d4ec;">user</div>
+      </div>
+
+      <!-- Info note on right -->
+      <div class="t-card" id="t-note-vm"
+           style="top:500px; left:540px; width:460px; height:110px; background:rgba(77,168,255,0.06); border-color:#4da8ff;">
+        <div class="t-title" style="color:#7ec0ff;">✅ 여기 주목</div>
+        <div class="t-desc" style="text-align:left; line-height:1.6; margin-top:6px;">
+          • NodePort 없음 · LoadBalancer Service 없음<br/>
+          • Ingress Controller는 <b style="color:#e5a66e;">hostPort</b>로 Node 포트 80/443을 직접 점유<br/>
+          • 내부 Service는 전부 <b style="color:#7ec0ff;">ClusterIP</b> — 클러스터 내부 라우팅만 담당
+        </div>
+      </div>
+
+      <svg class="arrows" id="t-arrows"></svg>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#9bb1d6"></span>HTTP 요청</span>
+      <span><span class="dot" style="background:#e5a66e"></span>터널 구간</span>
+      <span><span class="dot" style="background:#34d399"></span>응답</span>
+      <span><span style="display:inline-block; width:14px; border-top:2px dashed #4da8ff;"></span>Service(ClusterIP)</span>
+      <span><span style="display:inline-block; width:14px; border-top:2px dotted #e5a66e;"></span>Namespace</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🚇 Ingress 터널 시뮬레이터</h2>
+    <div class="status-bar">
+      <div class="status-item">
+        <small>현재 단계</small>
+        <b id="t-step-info">대기중</b>
+      </div>
+      <div class="status-item">
+        <small>요청 카운트</small>
+        <b id="t-req-count">0</b>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-info" id="t-btn-step" onclick="tunnelStepByStep()">⏭ 단계별 진입 (클릭 = 1단계)</button>
+      <button class="btn btn-happy" id="t-btn-full" onclick="tunnelFullFlow()">▶ 전체 흐름 자동 재생</button>
+      <button class="btn btn-info" id="t-btn-roundtrip" onclick="tunnelRoundTrip()">↔ 요청 + 응답 왕복</button>
+      <button class="btn btn-reset" onclick="tunnelReset()">🔄 리셋</button>
+    </div>
+
+    <h2 style="margin-top:14px;">진입 경로 (7단계)</h2>
+    <ol class="tunnel-steps" id="t-steps">
+      <li data-step="1"><b>1.</b> Browser → 주소창 입력<br/>
+          <span style="font-size:10px;">http://metacoding.local</span></li>
+      <li data-step="2"><b>2.</b> /etc/hosts 조회 → 127.0.0.1 로 해석</li>
+      <li data-step="3"><b>3.</b> 127.0.0.1:80 접속 → <b>minikube tunnel</b> 이 수신</li>
+      <li data-step="4"><b>4.</b> 터널 통과 → Minikube 컨테이너 내부로 전달</li>
+      <li data-step="5"><b>5.</b> Node 의 80 포트 = Ingress Controller Pod (hostPort)</li>
+      <li data-step="6"><b>6.</b> Ingress Rule 매칭 → ClusterIP Service 선택</li>
+      <li data-step="7"><b>7.</b> Service → Pod (로드밸런싱) → 응답</li>
+    </ol>
+
+    <div style="margin-top:10px; padding:8px; background:rgba(229,166,110,0.12); border-left:3px solid #e5a66e; border-radius:4px; font-size:11px; line-height:1.55;">
+      <b>💡 핵심</b><br/>
+      • <b>NodePort / LoadBalancer 없이</b> 외부 진입 가능.<br/>
+      • Docker driver는 <b>minikube tunnel</b> 필요.<br/>
+      • VM driver (kvm2/virtualbox)라면 <b>minikube ip</b> 로 직접 접근 OK.<br/>
+      • Ingress Controller도 결국 <b>Pod</b> → Node 내부에 위치.
+    </div>
+
+    <h2 style="margin-top:14px;">로그</h2>
+    <div class="log" id="t-log"></div>
+  </div>
+</div>
+</div><!-- /tab-tunnel -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- Tab 4: Idempotency Test (messageId)                                -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div class="tab-content" id="tab-idem">
+<div class="layout">
+  <div class="panel">
+    <div class="scene" id="scene-idem">
+      <div class="ns-label">멱등성 테스트 · <b>messageId</b>로 중복 메시지 방어 · at-least-once 재전송 시나리오</div>
+
+      <!-- Mode indicator chip -->
+      <div class="idem-mode-chip on" id="i-mode-chip">✅ 멱등성 검사 ON</div>
+
+      <!-- Group labels -->
+      <div class="group-label" style="top:34px; left:22px;">[A] Producer (Orchestrator)</div>
+      <div class="group-label" style="top:34px; left:355px;">[B] Kafka Topic</div>
+      <div class="group-label" style="top:34px; left:710px;">[C] Consumer (Product)</div>
+      <div class="group-label" style="top:360px; left:22px;">[D] 멱등성 가드 로직 (Consumer 내부)</div>
+
+      <!-- [A] Producer -->
+      <div class="idem-actor orch" id="i-producer" style="top:60px; left:30px; width:260px;">
+        <div class="title">🎼 Orchestrator</div>
+        <div class="sub">발행 : <b>product-decrease-command</b></div>
+        <div style="margin-top:8px; padding:6px; background:rgba(0,0,0,0.3); border-radius:5px; text-align:left; font-family:monospace; font-size:10px; color:#e8c7ff;">
+          { messageId: "<span id="i-next-msgid">saga-100-decrease</span>",<br/>
+          &nbsp;&nbsp;productId: 1, qty: 1 }
+        </div>
+        <div style="margin-top:6px; font-size:10px; color:#d9b4ec; font-style:italic;">
+          동일 messageId로 재전송 → Kafka at-least-once
+        </div>
+      </div>
+
+      <!-- [B] Kafka Topic -->
+      <div class="idem-topic" id="i-topic" style="top:90px; left:360px; width:300px;">
+        <div class="tname">📋 product-decrease-command</div>
+        <div class="tqueue" id="i-topic-queue"></div>
+        <button class="tconsume-btn" id="i-consume-btn" type="button">▶ 소비 대기</button>
+        <div style="margin-top:6px; font-size:9.5px; color:#9bb1d6;">
+          메시지 적재 시 🟡, 재전송은 🔴
+        </div>
+      </div>
+
+      <!-- [C] Consumer -->
+      <div class="idem-actor product" id="i-consumer" style="top:60px; left:720px; width:220px;">
+        <div class="title">📦 Product Consumer</div>
+        <div class="sub">@KafkaListener</div>
+        <div style="margin-top:6px; padding:6px; background:rgba(0,0,0,0.3); border-radius:5px; font-size:10px; font-family:monospace; color:#fde68a; text-align:left;">
+          onMessage(msg) {<br/>
+          &nbsp;&nbsp;if (이미처리?) return;<br/>
+          &nbsp;&nbsp;차감(qty);<br/>
+          &nbsp;&nbsp;기록(messageId);<br/>
+          }
+        </div>
+      </div>
+
+      <!-- [D] Idempotency guard flow -->
+      <div class="idem-check-box" id="i-step-1" style="top:400px; left:30px; width:250px;">
+        <b>① SELECT 체크</b><br/>
+        <code>SELECT 1 FROM processed_message_tb<br/>WHERE message_id = ?</code>
+        <div style="margin-top:5px; font-size:10px;">→ 이미 처리했는지 확인</div>
+      </div>
+
+      <div class="idem-check-box" id="i-step-2" style="top:400px; left:300px; width:250px;">
+        <b>② 분기 (멱등성 가드)</b><br/>
+        · HIT (존재) → <span style="color:#34d399;">skip</span> (아무것도 안 함)<br/>
+        · MISS (없음) → <span style="color:#fbbf24;">비즈니스 로직 실행</span>
+      </div>
+
+      <div class="idem-check-box" id="i-step-3" style="top:400px; left:570px; width:230px;">
+        <b>③ 같은 트랜잭션으로</b><br/>
+        <code>UPDATE product_tb<br/>SET qty = qty - ?</code><br/>
+        <code>INSERT INTO<br/>processed_message_tb</code>
+        <div style="margin-top:5px; font-size:10px; color:#9bb1d6;">→ 원자적 커밋</div>
+      </div>
+
+      <!-- Result indicator -->
+      <div class="idem-check-box" id="i-result" style="top:548px; left:30px; width:770px; min-height:48px; background:rgba(0,0,0,0.3); border-color: #3a4e75;">
+        <b>🔍 최근 처리 결과</b> <span id="i-result-text" style="font-family:monospace; color:#9bb1d6;">— (아직 소비한 메시지 없음)</span>
+      </div>
+
+      <!-- [E] DB Panel on the right side -->
+      <div class="idem-side-db" id="i-db">
+        <div class="idem-db-table">
+          <div class="db-table-name">product_tb <span style="color:#fbbf24; font-size:9px;">(비즈니스 상태)</span></div>
+          <table>
+            <thead><tr><th>id</th><th>product</th><th>quantity</th></tr></thead>
+            <tbody>
+              <tr><td>1</td><td>MacBook Pro</td><td id="i-prod-qty">10</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:4px; font-size:10px; color:#9bb1d6;">
+            중복 차감 횟수: <span class="idem-counter" id="i-dup-count">0</span>
+          </div>
+        </div>
+
+        <div class="idem-db-table">
+          <div class="db-table-name">processed_message_tb <span style="color:#34d399; font-size:9px;">(멱등성 가드)</span></div>
+          <table>
+            <thead><tr><th>message_id</th><th>service</th><th>processed_at</th></tr></thead>
+            <tbody id="i-tb-processed"></tbody>
+          </table>
+        </div>
+
+        <div class="idem-db-table" style="background:rgba(77,168,255,0.06);">
+          <div class="db-table-name">📨 메시지 송수신 카운터</div>
+          <table>
+            <thead><tr><th>구분</th><th>값</th></tr></thead>
+            <tbody>
+              <tr><td>Kafka 적재 (Producer 발행)</td><td id="i-count-sent">0</td></tr>
+              <tr><td>Consumer 수신</td><td id="i-count-recv">0</td></tr>
+              <tr><td>실제 처리</td><td id="i-count-processed">0</td></tr>
+              <tr><td>중복 감지 → skip</td><td id="i-count-skipped">0</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <svg class="arrows" id="i-arrows"></svg>
+    </div>
+
+    <div class="legend">
+      <span><span class="dot" style="background:#ffd54a"></span>신규 메시지</span>
+      <span><span class="dot" style="background:#f87171"></span>중복 재전송</span>
+      <span><span class="dot" style="background:#34d399"></span>멱등성 HIT (skip)</span>
+      <span><span class="dot" style="background:#fbbf24"></span>비즈니스 로직 실행</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>🔁 멱등성 시나리오</h2>
+    <div class="status-bar">
+      <div class="status-item">
+        <small>현재 모드</small>
+        <b id="i-mode-info">멱등성 ON</b>
+      </div>
+      <div class="status-item">
+        <small>큐 대기 메시지</small>
+        <b id="i-queue-count">0</b>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn-idem-toggle-on" id="i-btn-toggle" onclick="i_toggleMode()">🛡 멱등성 검사 ON (클릭 → OFF)</button>
+      <button class="btn btn-new" id="i-btn-new" onclick="i_sendNew()">📨 새 메시지 발행 (신규 messageId)</button>
+      <button class="btn btn-dup" id="i-btn-dup" onclick="i_sendDuplicate()">🔁 동일 메시지 재전송 (at-least-once)</button>
+      <button class="btn btn-reset" onclick="i_reset()">🔄 리셋</button>
+    </div>
+
+    <div class="idem-explain">
+      <b>💡 messageId 의 역할</b><br/>
+      • Kafka는 <b>at-least-once</b> 전달 → 네트워크 재시도·리밸런싱 시 <b>같은 메시지가 2번 이상</b> 도착할 수 있음<br/>
+      • 소비자가 <code>qty -= 1</code> 같은 "상태 변경" 로직을 그냥 돌리면 → <b>재고 중복 차감 BUG</b><br/>
+      • 해결: 메시지에 <code>messageId</code>(= 사가 단계별 고유 ID) 부여 → Consumer가 처리 직전<br/>
+      &nbsp;&nbsp;<code>processed_message_tb</code>에서 "이 messageId 처리했나?" 조회 → 있으면 <b>skip</b><br/>
+      • 비즈니스 UPDATE + processed_message INSERT 를 <b>같은 트랜잭션</b>으로 묶어야 원자적으로 동작<br/><br/>
+      <b>🧪 실험 방법</b><br/>
+      1. <b>ON 상태</b>에서 "새 메시지" → "동일 메시지 재전송" → ▶ 두 번 소비 → 재고 1번만 차감 ✅<br/>
+      2. <b>OFF 상태</b>로 토글 → 같은 순서 반복 → 재고 <span style="color:#f87171;">2번 차감되는 BUG</span> 재현 ❌
+    </div>
+
+    <h2 style="margin-top:14px;">로그</h2>
+    <div class="log" id="i-log"></div>
+  </div>
+</div>
+</div><!-- /tab-idem -->
+
+<script>
+  // ══════════════════════════════════════════════════════════════════
+  // Tab Switching
+  // ══════════════════════════════════════════════════════════════════
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+      // redraw arrows for the visible tab
+      setTimeout(() => {
+        if (btn.dataset.tab === 'k8s') drawK8sArrows();
+        else if (btn.dataset.tab === 'msa') drawMsaArrows();
+        else if (btn.dataset.tab === 'tunnel') drawTunnelArrows();
+        else if (btn.dataset.tab === 'idem') drawIdemArrows();
+      }, 30);
+    });
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // Common utilities
+  // ══════════════════════════════════════════════════════════════════
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  function logTo(logId, type, text) {
+    const el = document.getElementById(logId);
+    if (!el) return;
+    const ts = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    const line = document.createElement('div');
+    line.className = 'l-' + type;
+    line.textContent = `[${ts}] ${text}`;
+    el.appendChild(line);
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function highlight(nodeId, cls, ms = 900) {
+    const el = document.getElementById(nodeId);
+    if (!el) return;
+    el.classList.add(cls);
+    setTimeout(() => el.classList.remove(cls), ms);
+  }
+
+  function pulsePod(prefix, service, podIdx, cls = 'active', ms = 900) {
+    highlight(`${prefix}-pod-${service}-${podIdx}`, cls, ms);
+  }
+
+  // Round-robin pod picker per (prefix, service)
+  const podCursor = {};
+  function pickPod(prefix, service) {
+    const key = prefix + ':' + service;
+    podCursor[key] = ((podCursor[key] || 0) % 2) + 1;
+    return podCursor[key];
+  }
+
+  // Animate packet from src DOM id to dst DOM id in the given scene
+  async function sendPacket(sceneId, srcId, dstId, color = 'rest', label = '', duration = 650) {
+    const scene = document.getElementById(sceneId);
+    const src = document.getElementById(srcId);
+    const dst = document.getElementById(dstId);
+    if (!scene || !src || !dst) return;
+    const sceneRect = scene.getBoundingClientRect();
+    const s = src.getBoundingClientRect();
+    const d = dst.getBoundingClientRect();
+    const x1 = s.left - sceneRect.left + s.width / 2 - 11;
+    const y1 = s.top  - sceneRect.top  + s.height / 2 - 11;
+    const x2 = d.left - sceneRect.left + d.width / 2 - 11;
+    const y2 = d.top  - sceneRect.top  + d.height / 2 - 11;
+
+    const p = document.createElement('div');
+    p.className = 'packet ' + color;
+    p.textContent = label;
+    p.style.left = x1 + 'px';
+    p.style.top  = y1 + 'px';
+    p.style.transition = `left ${duration}ms ease, top ${duration}ms ease`;
+    scene.appendChild(p);
+    requestAnimationFrame(() => {
+      p.style.left = x2 + 'px';
+      p.style.top  = y2 + 'px';
+    });
+    await sleep(duration);
+    p.remove();
+  }
+
+  function drawLineInSvg(svg, scene, srcId, dstId, className = '') {
+    const src = document.getElementById(srcId);
+    const dst = document.getElementById(dstId);
+    if (!src || !dst) return;
+    const sceneRect = scene.getBoundingClientRect();
+    const s = src.getBoundingClientRect();
+    const d = dst.getBoundingClientRect();
+    const x1 = s.left - sceneRect.left + s.width / 2;
+    const y1 = s.top  - sceneRect.top  + s.height / 2;
+    const x2 = d.left - sceneRect.left + d.width / 2;
+    const y2 = d.top  - sceneRect.top  + d.height / 2;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1);
+    line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2);
+    line.setAttribute('y2', y2);
+    if (className) line.setAttribute('class', className);
+    svg.appendChild(line);
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // TAB 1 — Kubernetes World
+  // ══════════════════════════════════════════════════════════════════
+  let k8sReqCount = 0;
+  let k8sBusy = false;
+  let k8sPodDead = false;
+  let k8sLoggedIn = false;
+  // 단계별 실행 상태
+  let k8sStep = 0;               // 0=대기, 1~11=진행단계, 12=완료
+  let k8sStepState = {};         // 단계 간 공유 상태 (pod 번호 등)
+
+  function k8sSetStep(s) { document.getElementById('k-step-info').textContent = s; }
+  function k8sLog(t, m) { logTo('k-log', t, m); }
+
+  function drawK8sArrows() {
+    const svg = document.getElementById('k-arrows');
+    const scene = document.getElementById('scene-k8s');
+    if (!svg || !scene) return;
+    svg.innerHTML = '';
+    // Browser(외부 프론트) → Ingress
+    drawLineInSvg(svg, scene, 'k-browser', 'k-ingress');
+    // Ingress → 각 백엔드 Service 로 직접 path 라우팅 (게이트웨이 없음)
+    ['user','product','order','delivery'].forEach(s => {
+      drawLineInSvg(svg, scene, 'k-ingress', 'k-svc-' + s);
+    });
+    // Backend services ↔ Kafka / DB / Orchestrator (internal)
+    ['user','product','order','delivery'].forEach(s => {
+      drawLineInSvg(svg, scene, 'k-svc-' + s, 'k-svc-db');
+    });
+    ['order','product','delivery'].forEach(s => {
+      drawLineInSvg(svg, scene, 'k-svc-' + s, 'k-svc-kafka');
+    });
+    drawLineInSvg(svg, scene, 'k-svc-kafka', 'k-svc-orchestrator');
+    drawLineInSvg(svg, scene, 'k-svc-orchestrator', 'k-svc-kafka');
+  }
+
+  function k8sSetBusy(b) {
+    k8sBusy = b;
+    ['k-btn-login','k-btn-step','k-btn-full','k-btn-10','k-btn-kill'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = b;
+    });
+  }
+
+  async function k8sRoute(service, label, color = 'rest') {
+    // Browser → Ingress(path 매칭) → target Service → target Pod
+    await sendPacket('scene-k8s', 'k-browser', 'k-ingress', color, label, 500);
+    highlight('k-ingress', 'active');
+    k8sLog('ingress', `Ingress: path 규칙 매칭 → ${service}-service`);
+    await sendPacket('scene-k8s', 'k-ingress', 'k-svc-' + service, color, '', 500);
+    highlight('k-svc-' + service, 'active');
+
+    // pick live pod (skip dead ones if order service)
+    let podIdx;
+    if (service === 'order' && k8sPodDead) {
+      podIdx = 2; // Pod1 dead, must use Pod2
+      k8sLog('sys', `Service가 감지: order Pod1 죽음 → Pod2로만 라우팅`);
+    } else {
+      podIdx = pickPod('k', service);
+    }
+    pulsePod('k', service, podIdx, 'active', 900);
+    k8sLog(service === 'order' ? 'order' : (service === 'user' ? 'user' : service === 'product' ? 'product' : 'deliv'),
+           `${service}-service → ${service} Pod${podIdx} 선택`);
+    return podIdx;
+  }
+
+  async function k8sLogin() {
+    if (k8sBusy) return;
+    k8sSetBusy(true);
+    k8sReqCount++;
+    document.getElementById('k-req-count').textContent = k8sReqCount;
+    k8sSetStep('① 로그인 요청 라우팅 (Browser → Ingress → User)');
+    k8sLog('sys', '═══ 로그인 요청 시작 (POST /api/login) ═══');
+    k8sLog('browser', 'Browser → http://metacoding.local/api/login');
+    const userPod = await k8sRoute('user', 'POST', 'login');
+    await sleep(400);
+    k8sLog('user', `user Pod${userPod}: ssar/1234 검증 → JWT 생성`);
+
+    // Response path: user Pod → user-svc → Ingress → Browser
+    k8sSetStep('② JWT 응답 경로 (역방향: User → Ingress → Browser)');
+    await sendPacket('scene-k8s', `k-pod-user-${userPod}`, 'k-svc-user', 'login', 'JWT', 500);
+    await sendPacket('scene-k8s', 'k-svc-user', 'k-ingress', 'login', 'JWT', 600);
+    highlight('k-ingress', 'active');
+    await sendPacket('scene-k8s', 'k-ingress', 'k-browser', 'login', 'JWT', 500);
+    highlight('k-browser', 'success');
+    k8sLog('ok', '✓ Browser: JWT 수신 → localStorage 저장 (로그인 완료)');
+    // 로그인 상태 전환: 인증 배지 업데이트
+    k8sLoggedIn = true;
+    const authBadge = document.getElementById('k-browser-auth');
+    if (authBadge) {
+      authBadge.textContent = '🔐 JWT 있음';
+      authBadge.classList.add('logged-in');
+    }
+    k8sSetStep('✅ 로그인 완료 (왕복 경로 체험)');
+    k8sSetBusy(false);
+  }
+
+  async function k8sFullOrderFlow() {
+    if (k8sBusy) return;
+    k8sSetBusy(true);
+    k8sReqCount++;
+    document.getElementById('k-req-count').textContent = k8sReqCount;
+
+    // ── 인증 가드: JWT 없으면 즉시 401 Unauthorized ──
+    if (!k8sLoggedIn) {
+      k8sLog('err', '═══ 주문 시도: 그러나 로그인 상태가 아님! (JWT 없음) ═══');
+      k8sLog('browser', 'Browser → POST /api/orders  (Authorization 헤더 없음)');
+      k8sSetStep('❌ 401 Unauthorized — 먼저 로그인하세요!');
+      // Browser → Ingress(path 매칭) → order-service (REST 요청은 도달)
+      await sendPacket('scene-k8s', 'k-browser', 'k-ingress', 'rest', 'POST', 500);
+      highlight('k-ingress', 'active');
+      k8sLog('ingress', 'Ingress: /api/orders 매칭 → order-service');
+      await sendPacket('scene-k8s', 'k-ingress', 'k-svc-order', 'rest', '', 500);
+      const oPodErr = pickPod('k', 'order');
+      pulsePod('k', 'order', oPodErr, 'error', 900);
+      highlight('k-svc-order', 'error');
+      k8sLog('err', `order Pod${oPodErr}: JwtVerifier → JWT 헤더 누락 감지`);
+      await sleep(300);
+      // 역방향 에러 응답
+      k8sLog('err', 'order → 401 Unauthorized 응답 반환');
+      await sendPacket('scene-k8s', `k-pod-order-${oPodErr}`, 'k-svc-order', 'error', '401', 500);
+      await sendPacket('scene-k8s', 'k-svc-order', 'k-ingress', 'error', '401', 500);
+      highlight('k-ingress', 'error');
+      await sendPacket('scene-k8s', 'k-ingress', 'k-browser', 'error', '401', 500);
+      highlight('k-browser', 'error');
+      k8sLog('err', '✗ Browser: HTTP 401 Unauthorized 수신 → 로그인 페이지로 리다이렉트');
+      k8sSetBusy(false);
+      return;
+    }
+
+    k8sLog('sys', '═══ 주문 전체 흐름 시작 (Browser → Ingress → Order → Kafka → Orchestrator → Product → DB → … → WebSocket) ═══');
+
+    // 1) Browser → Ingress(path 매칭) → Order (REST)
+    k8sSetStep('① POST /api/orders → Order Pod 도달');
+    k8sLog('browser', 'Browser → POST /api/orders');
+    const oPod = await k8sRoute('order', 'POST', 'rest');
+    await sleep(300);
+    k8sLog('order', `order Pod${oPod}: order_tb INSERT (status=PENDING)`);
+    await sendPacket('scene-k8s', `k-pod-order-${oPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+    highlight('k-svc-db', 'active');
+    pulsePod('k', 'db', 1, 'active', 700);
+    await sleep(300);
+
+    // 2) Order → Kafka (order-created-event)
+    k8sSetStep('② Order → Kafka: order-created-event 발행');
+    k8sLog('order', 'order → kafka-service: produce(order-created-event)');
+    await sendPacket('scene-k8s', `k-pod-order-${oPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+    highlight('k-svc-kafka', 'active');
+    pulsePod('k', 'kafka', 1, 'active', 800);
+    k8sLog('kafka', 'Kafka Broker :9092 → 토픽에 메시지 적재');
+    await sleep(400);
+
+    // 3) Kafka → Orchestrator (consume)
+    k8sSetStep('③ Orchestrator가 Kafka에서 consume');
+    const orchPod = pickPod('k', 'orchestrator');
+    await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-orchestrator', 'kafka', '◀', 600);
+    highlight('k-svc-orchestrator', 'active');
+    pulsePod('k', 'orchestrator', orchPod, 'active', 900);
+    k8sLog('orch', `orchestrator Pod${orchPod}: Saga 시작 → product-decrease-command 발행 결정`);
+    await sleep(400);
+
+    // 4) Orchestrator → Kafka (product-decrease-command)
+    k8sSetStep('④ Orchestrator → Kafka: product-decrease-command 발행');
+    await sendPacket('scene-k8s', `k-pod-orchestrator-${orchPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+    highlight('k-svc-kafka', 'active');
+    pulsePod('k', 'kafka', 1, 'active', 700);
+    k8sLog('kafka', 'Kafka: product-decrease-command 토픽 적재');
+    await sleep(400);
+
+    // 5) Kafka → Product (consume)
+    k8sSetStep('⑤ Product가 consume → 재고 차감');
+    const pPod = pickPod('k', 'product');
+    await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-product', 'kafka', '◀', 600);
+    highlight('k-svc-product', 'active');
+    pulsePod('k', 'product', pPod, 'active', 900);
+    k8sLog('product', `product Pod${pPod}: validateQuantity → UPDATE product_tb`);
+    await sendPacket('scene-k8s', `k-pod-product-${pPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+    pulsePod('k', 'db', 1, 'active', 700);
+    await sleep(400);
+
+    // 6) Product → Kafka (product-decreased-event)
+    k8sSetStep('⑥ Product → Kafka: product-decreased-event');
+    await sendPacket('scene-k8s', `k-pod-product-${pPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+    pulsePod('k', 'kafka', 1, 'active', 700);
+    pulsePod('k', 'product', pPod, 'success', 700);
+    k8sLog('kafka', 'Kafka: product-decreased-event 적재');
+    await sleep(400);
+
+    // 7) Kafka → Orchestrator → delivery-create-command
+    k8sSetStep('⑦ Orchestrator → Kafka: delivery-create-command');
+    await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-orchestrator', 'kafka', '◀', 600);
+    pulsePod('k', 'orchestrator', orchPod, 'active', 700);
+    await sendPacket('scene-k8s', `k-pod-orchestrator-${orchPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+    pulsePod('k', 'kafka', 1, 'active', 600);
+    k8sLog('orch', 'orchestrator: 재고 성공 확인 → delivery-create-command 발행');
+    await sleep(400);
+
+    // 8) Kafka → Delivery
+    k8sSetStep('⑧ Delivery가 consume → 배송 생성');
+    const dPod = pickPod('k', 'delivery');
+    await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-delivery', 'kafka', '◀', 600);
+    pulsePod('k', 'delivery', dPod, 'active', 900);
+    await sendPacket('scene-k8s', `k-pod-delivery-${dPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+    pulsePod('k', 'db', 1, 'active', 600);
+    k8sLog('deliv', `delivery Pod${dPod}: delivery_tb INSERT`);
+    await sleep(300);
+    // delivery-created-event → orchestrator → (생략) → order-complete-command
+    k8sSetStep('⑨ (배송완료까지 진행) Orchestrator → order-complete-command');
+    await sendPacket('scene-k8s', `k-pod-delivery-${dPod}`, 'k-svc-kafka', 'kafka', '▶', 500);
+    pulsePod('k', 'kafka', 1, 'active', 500);
+    await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-orchestrator', 'kafka', '◀', 500);
+    pulsePod('k', 'orchestrator', orchPod, 'active', 600);
+    await sendPacket('scene-k8s', `k-pod-orchestrator-${orchPod}`, 'k-svc-kafka', 'kafka', '▶', 500);
+    pulsePod('k', 'kafka', 1, 'active', 500);
+    k8sLog('orch', 'orchestrator: 최종 단계 → order-complete-command 발행');
+    await sleep(300);
+
+    // 10) Kafka → Order → DB 업데이트 → WebSocket 푸시
+    k8sSetStep('⑩ Order consume → DB UPDATE + WebSocket 푸시');
+    await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-order', 'kafka', '◀', 600);
+    pulsePod('k', 'order', oPod, 'active', 700);
+    await sendPacket('scene-k8s', `k-pod-order-${oPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+    pulsePod('k', 'db', 1, 'success', 700);
+    k8sLog('order', `order Pod${oPod}: order_tb UPDATE (status=COMPLETED)`);
+    await sleep(300);
+
+    // WebSocket push back through Ingress → Browser
+    k8sSetStep('⑪ WebSocket 푸시: Order → Ingress → Browser');
+    k8sLog('ws', 'order: WebSocket /topic/orders/1 → Browser (Ingress /ws 터널)');
+    await sendPacket('scene-k8s', `k-pod-order-${oPod}`, 'k-svc-order', 'websocket', '📢', 600);
+    await sendPacket('scene-k8s', 'k-svc-order', 'k-ingress', 'websocket', '📢', 500);
+    highlight('k-ingress', 'active');
+    await sendPacket('scene-k8s', 'k-ingress', 'k-browser', 'websocket', '📢', 500);
+    highlight('k-browser', 'success');
+    pulsePod('k', 'order', oPod, 'success', 900);
+    k8sLog('ok', '🎉 Browser: "주문완료!" 알림 수신 (WebSocket push)');
+    k8sSetStep('✅ 주문 전체 흐름 완료 (Saga End-to-End)');
+    k8sLog('ok', '═══ 전체 흐름 종료 ═══');
+    k8sSetBusy(false);
+  }
+
+  // ── 단계별 실행: 버튼 클릭 1회 = 1단계 ──
+  async function k8sStepByStep() {
+    if (k8sBusy) return;
+
+    // 인증 가드
+    if (!k8sLoggedIn) {
+      k8sLog('err', '✗ 먼저 로그인하세요! (JWT 없이는 주문 요청 401)');
+      k8sSetStep('❌ 로그인 필요');
+      return;
+    }
+
+    k8sSetBusy(true);
+    const btn = document.getElementById('k-btn-step');
+    const s = k8sStepState;
+
+    try {
+      // 완료 상태였으면 자동 리셋 후 새로 시작
+      if (k8sStep >= 11) {
+        k8sStep = 0;
+        Object.keys(s).forEach(k => delete s[k]);
+        k8sLog('sys', '↻ 이전 흐름이 끝났으므로 새 주문을 시작합니다.');
+      }
+
+      k8sStep++;
+
+      switch (k8sStep) {
+        case 1: {
+          k8sReqCount++;
+          document.getElementById('k-req-count').textContent = k8sReqCount;
+          k8sSetStep('①/⑪ POST /api/orders → Order Pod 도달 + DB INSERT(PENDING)');
+          k8sLog('sys', '═══ [단계별] 주문 흐름 시작 ═══');
+          k8sLog('browser', 'Browser → POST /api/orders  (Authorization: Bearer <JWT>)');
+          s.oPod = await k8sRoute('order', 'POST', 'rest');
+          await sleep(200);
+          k8sLog('order', `order Pod${s.oPod}: order_tb INSERT (status=PENDING)`);
+          await sendPacket('scene-k8s', `k-pod-order-${s.oPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+          highlight('k-svc-db', 'active');
+          pulsePod('k', 'db', 1, 'active', 700);
+          break;
+        }
+        case 2: {
+          k8sSetStep('②/⑪ Order → Kafka: order-created-event 발행');
+          k8sLog('order', 'order → kafka-service: produce(order-created-event)');
+          await sendPacket('scene-k8s', `k-pod-order-${s.oPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+          highlight('k-svc-kafka', 'active');
+          pulsePod('k', 'kafka', 1, 'active', 800);
+          k8sLog('kafka', 'Kafka Broker :9092 → order-created-event 적재');
+          break;
+        }
+        case 3: {
+          k8sSetStep('③/⑪ Orchestrator가 Kafka에서 consume → Saga 시작');
+          s.orchPod = pickPod('k', 'orchestrator');
+          await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-orchestrator', 'kafka', '◀', 600);
+          highlight('k-svc-orchestrator', 'active');
+          pulsePod('k', 'orchestrator', s.orchPod, 'active', 900);
+          k8sLog('orch', `orchestrator Pod${s.orchPod}: Saga 시작 → product-decrease-command 발행 결정`);
+          break;
+        }
+        case 4: {
+          k8sSetStep('④/⑪ Orchestrator → Kafka: product-decrease-command 발행');
+          await sendPacket('scene-k8s', `k-pod-orchestrator-${s.orchPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+          highlight('k-svc-kafka', 'active');
+          pulsePod('k', 'kafka', 1, 'active', 700);
+          k8sLog('kafka', 'Kafka: product-decrease-command 토픽 적재');
+          break;
+        }
+        case 5: {
+          k8sSetStep('⑤/⑪ Product가 consume → 재고 차감(UPDATE product_tb)');
+          s.pPod = pickPod('k', 'product');
+          await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-product', 'kafka', '◀', 600);
+          highlight('k-svc-product', 'active');
+          pulsePod('k', 'product', s.pPod, 'active', 900);
+          k8sLog('product', `product Pod${s.pPod}: validateQuantity → UPDATE product_tb`);
+          await sendPacket('scene-k8s', `k-pod-product-${s.pPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+          pulsePod('k', 'db', 1, 'active', 700);
+          break;
+        }
+        case 6: {
+          k8sSetStep('⑥/⑪ Product → Kafka: product-decreased-event');
+          await sendPacket('scene-k8s', `k-pod-product-${s.pPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+          pulsePod('k', 'kafka', 1, 'active', 700);
+          pulsePod('k', 'product', s.pPod, 'success', 700);
+          k8sLog('kafka', 'Kafka: product-decreased-event 적재');
+          break;
+        }
+        case 7: {
+          k8sSetStep('⑦/⑪ Orchestrator consume → delivery-create-command 발행');
+          await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-orchestrator', 'kafka', '◀', 600);
+          pulsePod('k', 'orchestrator', s.orchPod, 'active', 700);
+          await sendPacket('scene-k8s', `k-pod-orchestrator-${s.orchPod}`, 'k-svc-kafka', 'kafka', '▶', 600);
+          pulsePod('k', 'kafka', 1, 'active', 600);
+          k8sLog('orch', 'orchestrator: 재고 성공 → delivery-create-command 발행');
+          break;
+        }
+        case 8: {
+          k8sSetStep('⑧/⑪ Delivery가 consume → delivery_tb INSERT');
+          s.dPod = pickPod('k', 'delivery');
+          await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-delivery', 'kafka', '◀', 600);
+          pulsePod('k', 'delivery', s.dPod, 'active', 900);
+          await sendPacket('scene-k8s', `k-pod-delivery-${s.dPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+          pulsePod('k', 'db', 1, 'active', 600);
+          k8sLog('deliv', `delivery Pod${s.dPod}: delivery_tb INSERT`);
+          break;
+        }
+        case 9: {
+          k8sSetStep('⑨/⑪ Delivery → Kafka → Orchestrator → order-complete-command');
+          await sendPacket('scene-k8s', `k-pod-delivery-${s.dPod}`, 'k-svc-kafka', 'kafka', '▶', 500);
+          pulsePod('k', 'kafka', 1, 'active', 500);
+          await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-orchestrator', 'kafka', '◀', 500);
+          pulsePod('k', 'orchestrator', s.orchPod, 'active', 600);
+          await sendPacket('scene-k8s', `k-pod-orchestrator-${s.orchPod}`, 'k-svc-kafka', 'kafka', '▶', 500);
+          pulsePod('k', 'kafka', 1, 'active', 500);
+          k8sLog('orch', 'orchestrator: 최종 단계 → order-complete-command 발행');
+          break;
+        }
+        case 10: {
+          k8sSetStep('⑩/⑪ Order가 consume → DB UPDATE (status=COMPLETED)');
+          await sendPacket('scene-k8s', 'k-svc-kafka', 'k-svc-order', 'kafka', '◀', 600);
+          pulsePod('k', 'order', s.oPod, 'active', 700);
+          await sendPacket('scene-k8s', `k-pod-order-${s.oPod}`, 'k-svc-db', 'rest', 'SQL', 500);
+          pulsePod('k', 'db', 1, 'success', 700);
+          k8sLog('order', `order Pod${s.oPod}: order_tb UPDATE (status=COMPLETED)`);
+          break;
+        }
+        case 11: {
+          k8sSetStep('⑪/⑪ WebSocket 푸시: Order → Ingress → Browser');
+          k8sLog('ws', 'order: WebSocket /topic/orders/1 → Browser (Ingress /ws 터널)');
+          await sendPacket('scene-k8s', `k-pod-order-${s.oPod}`, 'k-svc-order', 'websocket', '📢', 600);
+          await sendPacket('scene-k8s', 'k-svc-order', 'k-ingress', 'websocket', '📢', 500);
+          highlight('k-ingress', 'active');
+          await sendPacket('scene-k8s', 'k-ingress', 'k-browser', 'websocket', '📢', 500);
+          highlight('k-browser', 'success');
+          pulsePod('k', 'order', s.oPod, 'success', 900);
+          k8sLog('ok', '🎉 Browser: "주문완료!" 알림 수신 (WebSocket push)');
+          k8sSetStep('✅ 완료! (다시 클릭하면 새 주문 시작)');
+          k8sLog('ok', '═══ [단계별] 전체 흐름 종료 ═══');
+          break;
+        }
+      }
+
+      // 버튼 라벨 업데이트
+      const nextNum = k8sStep >= 11 ? '↻ 새 주문 시작' : `⏭ 다음 단계 (${k8sStep + 1}/11)`;
+      if (btn) btn.textContent = nextNum;
+    } finally {
+      k8sSetBusy(false);
+    }
+  }
+
+  async function k8sTenOrders() {
+    if (k8sBusy) return;
+    k8sSetBusy(true);
+
+    // ── 인증 가드: JWT 없으면 즉시 401 Unauthorized ──
+    if (!k8sLoggedIn) {
+      k8sLog('err', '═══ 10회 주문 시도: 로그인 안 됨 → 첫 요청부터 401 ═══');
+      k8sSetStep('❌ 401 Unauthorized — 먼저 로그인하세요!');
+      k8sReqCount++;
+      document.getElementById('k-req-count').textContent = k8sReqCount;
+      k8sLog('browser', 'Browser → POST /api/orders  (Authorization 헤더 없음)');
+      await sendPacket('scene-k8s', 'k-browser', 'k-ingress', 'rest', 'POST', 400);
+      highlight('k-ingress', 'active');
+      await sendPacket('scene-k8s', 'k-ingress', 'k-svc-order', 'rest', '', 400);
+      const oPodErr = pickPod('k', 'order');
+      pulsePod('k', 'order', oPodErr, 'error', 700);
+      k8sLog('err', `order Pod${oPodErr}: JwtVerifier → JWT 누락 → 401 반환`);
+      await sendPacket('scene-k8s', `k-pod-order-${oPodErr}`, 'k-svc-order', 'error', '401', 400);
+      await sendPacket('scene-k8s', 'k-svc-order', 'k-ingress', 'error', '401', 400);
+      await sendPacket('scene-k8s', 'k-ingress', 'k-browser', 'error', '401', 400);
+      highlight('k-browser', 'error');
+      k8sLog('err', '✗ 모든 요청이 401로 차단됨 — 로드밸런싱 관찰 불가');
+      k8sSetBusy(false);
+      return;
+    }
+
+    k8sLog('sys', '═══ 10번 연속 주문 요청 (로드밸런싱 관찰) ═══');
+    for (let i = 1; i <= 10; i++) {
+      k8sReqCount++;
+      document.getElementById('k-req-count').textContent = k8sReqCount;
+      k8sSetStep(`요청 ${i}/10 라우팅 중`);
+      k8sLog('browser', `요청 #${i}: POST /api/orders`);
+      await k8sRoute('order', `#${i}`, 'rest');
+      await sleep(200);
+    }
+    k8sSetStep('✅ 10건 처리 완료 (Pod1/Pod2 균등 분배)');
+    k8sLog('ok', '═══ 완료: 요청이 Pod1/Pod2에 번갈아 라우팅 되었습니다 ═══');
+    k8sSetBusy(false);
+  }
+
+  async function k8sKillPod() {
+    if (k8sBusy) return;
+    k8sSetBusy(true);
+    k8sSetStep('💀 order Pod1 강제종료');
+    k8sLog('err', '═══ kubectl delete pod order-deploy-xxx (Pod1) ═══');
+    const pod1 = document.getElementById('k-pod-order-1');
+    pod1.classList.add('dead');
+    pod1.textContent = '✗';
+    k8sPodDead = true;
+    await sleep(800);
+    k8sLog('sys', 'Deployment controller: Pod1 사라진 걸 감지');
+    k8sLog('sys', 'Service(Endpoints)에서 죽은 Pod1 자동 제거 → 트래픽은 Pod2로만');
+
+    // Route a request during the outage
+    await sleep(400);
+    k8sLog('browser', '⚡ 이 와중에 새 요청 도착 → 정상 동작!');
+    await k8sRoute('order', '♻', 'rest');
+    await sleep(500);
+
+    k8sLog('sys', 'Deployment: 새 Pod 생성 중... (replicas=2 유지)');
+    await sleep(900);
+    pod1.classList.remove('dead');
+    pod1.classList.add('new');
+    pod1.textContent = 'P1';
+    k8sPodDead = false;
+    setTimeout(() => pod1.classList.remove('new'), 600);
+    pulsePod('k', 'order', 1, 'success', 1100);
+    k8sLog('ok', '✅ 새 Pod1 기동 완료 → Service Endpoints 복구, replicas=2 회복');
+    k8sSetStep('✅ 복구 완료 (무중단 달성)');
+    k8sSetBusy(false);
+  }
+
+  function k8sReset() {
+    document.getElementById('k-log').innerHTML = '';
+    k8sReqCount = 0;
+    document.getElementById('k-req-count').textContent = '0';
+    k8sSetStep('대기중');
+    k8sSetBusy(false);
+    const pod1 = document.getElementById('k-pod-order-1');
+    if (pod1) { pod1.classList.remove('dead'); pod1.textContent = 'P1'; }
+    k8sPodDead = false;
+    // 로그인 상태/배지 초기화
+    k8sLoggedIn = false;
+    const authBadge = document.getElementById('k-browser-auth');
+    if (authBadge) {
+      authBadge.textContent = '🔓 JWT 없음';
+      authBadge.classList.remove('logged-in');
+    }
+    // 단계별 실행 상태 초기화
+    k8sStep = 0;
+    k8sStepState = {};
+    const stepBtn = document.getElementById('k-btn-step');
+    if (stepBtn) stepBtn.textContent = '⏭ 주문 흐름 단계별 실행 (클릭 1회 = 1단계)';
+    k8sLog('sys', '리셋 완료. 먼저 로그인 후 주문 흐름을 실행하세요.');
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // TAB 2 — MSA Business Flow
+  // ══════════════════════════════════════════════════════════════════
+  const TOPICS = [
+    'order-created-event',
+    'product-decrease-command',
+    'product-decreased-event',
+    'product-increase-command',
+    'delivery-create-command',
+    'delivery-created-event',
+    'delivery-completed-event',
+    'order-complete-command',
+    'order-cancel-command',
+  ];
+
+  const kafkaTopicsEl = document.getElementById('m-kafka-topics');
+  TOPICS.forEach(t => {
+    const div = document.createElement('div');
+    div.className = 'kafka-topic';
+    div.id = 'm-topic-' + t;
+    div.innerHTML = `
+      <div class="tname">${t}</div>
+      <div class="tqueue"></div>
+      <button class="tprocess-btn" data-topic="${t}" type="button">▶ 대기</button>
+    `;
+    kafkaTopicsEl.appendChild(div);
+  });
+
+  // Click delegation for step-by-step process buttons
+  kafkaTopicsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tprocess-btn');
+    if (!btn) return;
+    const topicEl = btn.closest('.kafka-topic');
+    if (!topicEl || !topicEl.classList.contains('ready')) return;
+    const topic = btn.dataset.topic;
+    mAdvanceStep(topic);
+  });
+
+  let mBusy = false;
+  let mStepBusy = false;
+  let mLoggedIn = false;   // 로그인 상태 (false면 order-service가 JWT 없다고 401 반환)
+  let mKafkaCount = 0;
+  let mOrderCounter = 3; // 이미 3개 주문 있었다고 가정 → 새 주문 id는 4부터
+
+  // Step queue for step-by-step saga execution
+  let mStepQueue = [];   // [{ topic, label, fn }]
+  let mStepIdx = 0;
+
+  function mSetStep(s) { document.getElementById('m-step-info').textContent = s; }
+  function mLog(t, m) { logTo('m-log', t, m); }
+
+  function mSetBusy(b) {
+    mBusy = b;
+    ['m-btn-happy','m-btn-fail','m-btn-cancel'].forEach(id => {
+      document.getElementById(id).disabled = b;
+    });
+    document.getElementById('m-order-btn').disabled = b;
+    // 로그인 버튼: busy일 때 또는 이미 로그인된 경우 disabled
+    const lb = document.getElementById('m-login-btn');
+    if (lb) lb.disabled = b || mLoggedIn;
+  }
+
+  function mEnqueue(topic) {
+    const el = document.getElementById('m-topic-' + topic);
+    if (!el) return;
+    el.classList.add('active');
+    const q = el.querySelector('.tqueue');
+    const dot = document.createElement('div');
+    dot.className = 'msg-dot';
+    q.appendChild(dot);
+    mKafkaCount++;
+    document.getElementById('m-msg-count').textContent = mKafkaCount;
+    mLog('kafka', `Kafka[${topic}] ← 메시지 적재 (불 켜짐 🟡)`);
+  }
+
+  function mConsume(topic) {
+    const el = document.getElementById('m-topic-' + topic);
+    if (!el) return;
+    const q = el.querySelector('.tqueue');
+    if (q.firstChild) {
+      const dot = q.firstChild;
+      dot.style.transition = 'opacity 300ms';
+      dot.style.opacity = '0';
+      setTimeout(() => dot.remove(), 300);
+    }
+    // If no more messages, dim the topic
+    setTimeout(() => {
+      if (!q.firstChild) el.classList.remove('active');
+    }, 320);
+  }
+
+  // ── Step-by-step saga control ────────────────────────────────
+  function mSetNextBtn(state, numText, labelText, subText) {
+    const btn = document.getElementById('m-btn-next');
+    const labelEl = document.getElementById('m-btn-next-label');
+    const subEl = document.getElementById('m-btn-next-sub');
+    if (!btn) return;
+    btn.classList.remove('ready','busy','done');
+    if (state) btn.classList.add(state);
+    btn.disabled = (state !== 'ready');
+    if (labelEl) {
+      labelEl.innerHTML = `<span class="step-num">${numText}</span>${labelText}`;
+    }
+    if (subEl && subText !== undefined) subEl.textContent = subText;
+  }
+
+  function mResetStepButtons() {
+    document.querySelectorAll('.kafka-topic').forEach(el => {
+      el.classList.remove('ready');
+      const btn = el.querySelector('.tprocess-btn');
+      if (btn) btn.textContent = '▶ 대기';
+    });
+    // Also reset unified next-step button to disabled waiting state
+    mSetNextBtn(null, '—', '시나리오를 먼저 시작하세요', '좌측 토픽의 ▶ 버튼을 눌러도 동일하게 진행됩니다');
+  }
+
+  function m_clickNext() {
+    if (mStepBusy) return;
+    if (mStepIdx >= mStepQueue.length) return;
+    const step = mStepQueue[mStepIdx];
+    if (!step) return;
+    mAdvanceStep(step.topic);
+  }
+
+  function mSetupSteps(steps, onComplete) {
+    mStepQueue = steps;
+    mStepIdx = 0;
+    mStepOnComplete = onComplete || null;
+    mHighlightNextStep();
+  }
+
+  let mStepOnComplete = null;
+
+  function mHighlightNextStep() {
+    mResetStepButtons();
+    if (mStepIdx >= mStepQueue.length) {
+      mSetStep('✅ 모든 단계 완료');
+      mSetNextBtn('done', '✓', '✅ 모든 단계 완료', '리셋 후 새 시나리오를 시작하세요');
+      if (mStepOnComplete) {
+        const cb = mStepOnComplete;
+        mStepOnComplete = null;
+        cb();
+      } else {
+        mSetBusy(false);
+      }
+      return;
+    }
+    const step = mStepQueue[mStepIdx];
+    const topicEl = document.getElementById('m-topic-' + step.topic);
+    if (!topicEl) return;
+    topicEl.classList.add('ready');
+    const btn = topicEl.querySelector('.tprocess-btn');
+    if (btn) btn.textContent = `▶ ${mStepIdx + 1}단계`;
+    mSetStep(`▶ ${mStepIdx + 1}단계 대기중: ${step.label}  (우측 ▶ 클릭)`);
+    // Enable the unified next-step button with this step's info
+    mSetNextBtn('ready', `${mStepIdx + 1}`, `▶ ${step.label}`, `Kafka: ${step.topic}`);
+  }
+
+  async function mAdvanceStep(topic) {
+    if (mStepBusy) return;
+    if (mStepIdx >= mStepQueue.length) return;
+    const step = mStepQueue[mStepIdx];
+    if (step.topic !== topic) return;
+    mStepBusy = true;
+    // Disable the clicked button immediately
+    const topicEl = document.getElementById('m-topic-' + step.topic);
+    if (topicEl) {
+      topicEl.classList.remove('ready');
+      const btn = topicEl.querySelector('.tprocess-btn');
+      if (btn) btn.textContent = `⚙ ${mStepIdx + 1}단계 처리중`;
+    }
+    // Also update unified next-step button to "busy"
+    mSetNextBtn('busy', `${mStepIdx + 1}`, `⚙ 처리중: ${step.label}`, `Kafka: ${step.topic}`);
+    mSetStep(`⚙ ${mStepIdx + 1}단계 처리중: ${step.label}`);
+    mStepIdx++;
+    try {
+      await step.fn();
+    } finally {
+      mStepBusy = false;
+      mHighlightNextStep();
+    }
+  }
+
+  function mShowScreen(name) {
+    document.querySelectorAll('#m-browser .section').forEach(s => s.classList.remove('active'));
+    const el = document.getElementById('scr-' + name);
+    if (el) el.classList.add('active');
+  }
+
+  function mSetStatus(cls, text) {
+    const el = document.getElementById('m-status');
+    if (!el) return;
+    el.className = 'status ' + cls;
+    el.textContent = text;
+  }
+
+  function mSetWs(connected) {
+    const ind = document.getElementById('m-ws-ind');
+    if (!ind) return;
+    if (connected) {
+      ind.className = 'ws-indicator';
+      ind.textContent = '🟢 WebSocket 연결됨 (/topic/orders/1)';
+    } else {
+      ind.className = 'ws-indicator off';
+      ind.textContent = '🔴 WebSocket 미연결';
+    }
+    drawMsaArrows();
+  }
+
+  function mUpdateCell(id, newVal, type='changed') {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = newVal;
+    el.classList.remove('changed','success');
+    void el.offsetWidth;
+    el.classList.add(type);
+  }
+
+  function mAddOrderRow(orderId, userId, prodId, qty, status) {
+    const tbody = document.getElementById('tb-order');
+    const tr = document.createElement('tr');
+    tr.id = `row-order-${orderId}`;
+    tr.className = 'new-row';
+    tr.innerHTML = `<td>${orderId}</td><td>${userId}</td><td>${prodId}</td><td>${qty}</td><td class="c-status">${status}</td>`;
+    tbody.appendChild(tr);
+    setTimeout(() => tr.classList.remove('new-row'), 700);
+  }
+
+  function mUpdateOrderStatus(orderId, newStatus, type='changed') {
+    const row = document.getElementById(`row-order-${orderId}`);
+    if (!row) return;
+    const cell = row.querySelector('.c-status');
+    if (cell) {
+      cell.textContent = newStatus;
+      cell.classList.remove('changed','success');
+      void cell.offsetWidth;
+      cell.classList.add(type);
+    }
+  }
+
+  function mAddDeliveryRow(deliveryId, orderId, address, status) {
+    const tbody = document.getElementById('tb-delivery');
+    const tr = document.createElement('tr');
+    tr.id = `row-delivery-${deliveryId}`;
+    tr.className = 'new-row';
+    tr.innerHTML = `<td>${deliveryId}</td><td>${orderId}</td><td>${address}</td><td class="c-status">${status}</td>`;
+    tbody.appendChild(tr);
+    setTimeout(() => tr.classList.remove('new-row'), 700);
+  }
+
+  function mUpdateDeliveryStatus(deliveryId, newStatus, type='changed') {
+    const row = document.getElementById(`row-delivery-${deliveryId}`);
+    if (!row) return;
+    const cell = row.querySelector('.c-status');
+    if (cell) {
+      cell.textContent = newStatus;
+      cell.classList.remove('changed','success');
+      void cell.offsetWidth;
+      cell.classList.add(type);
+    }
+  }
+
+  function mAddProcessedRow(messageId, service) {
+    const tbody = document.getElementById('tb-processed');
+    const tr = document.createElement('tr');
+    tr.className = 'new-row';
+    tr.innerHTML = `<td>${messageId}</td><td>${service}</td>`;
+    tbody.appendChild(tr);
+    setTimeout(() => tr.classList.remove('new-row'), 700);
+  }
+
+  function drawMsaArrows() {
+    const svg = document.getElementById('m-arrows');
+    const scene = document.getElementById('scene-msa');
+    if (!svg || !scene) return;
+    svg.innerHTML = '';
+    // REST path lines (Browser → Services)
+    ['m-user','m-order','m-product','m-delivery'].forEach(s => {
+      drawLineInSvg(svg, scene, 'm-browser', s);
+    });
+    // Services ↔ DB
+    ['m-user','m-order','m-product','m-delivery'].forEach(s => {
+      drawLineInSvg(svg, scene, s, 'm-db');
+    });
+    // Services ↔ Kafka
+    ['m-order','m-product','m-delivery'].forEach(s => {
+      drawLineInSvg(svg, scene, s, 'm-kafka');
+    });
+    // Kafka ↔ Orchestrator
+    drawLineInSvg(svg, scene, 'm-kafka', 'm-orchestrator');
+    // WebSocket dotted line (Browser ↔ Order's WebSocketHandler)
+    const wsClass = 'ws-line';
+    drawLineInSvg(svg, scene, 'm-browser', 'm-ws-comp', wsClass);
+  }
+
+  // Animate login sequence (idempotent — skip if already logged in)
+  async function m_doLogin() {
+    if (mLoggedIn) {
+      // 이미 로그인되어 있으면 애니메이션 생략, 기존 pod만 선택
+      return pickPod('m', 'order');
+    }
+    mShowScreen('login');
+    mSetWs(false);
+    mLog('browser', 'Browser: 로그인 폼 제출 → POST /api/login');
+
+    await sendPacket('scene-msa', 'm-browser', 'm-user', 'login', 'POST', 700);
+    const uPod = pickPod('m', 'user');
+    pulsePod('m', 'user', uPod, 'active', 900);
+    mLog('user', `User Pod ${uPod}: ssar/1234 검증 → JWT 발급 (sub=1, HMAC512)`);
+    await sleep(600);
+    await sendPacket('scene-msa', 'm-user', 'm-browser', 'login', 'JWT', 600);
+    mLog('browser', 'Browser: JWT 수신, localStorage 저장');
+
+    // Switch to order screen
+    mShowScreen('order');
+    mSetStatus('idle', '주문을 해보세요');
+    await sleep(300);
+
+    // WebSocket connect → Order 서비스의 WebSocketHandler가 세션 수립
+    mLog('browser', 'Browser: WebSocket 연결 시도 (/ws)');
+    await sendPacket('scene-msa', 'm-browser', 'm-ws-comp', 'websocket', 'WS', 600);
+    highlight('m-ws-comp', 'active', 1000);
+    const oPod = pickPod('m', 'order');
+    pulsePod('m', 'order', oPod, 'active', 900);
+    mLog('order', `Order Pod ${oPod}: WebSocketHandler가 세션 확립 → /topic/orders/1 구독`);
+    mSetWs(true);
+    mLoggedIn = true;
+    // 로그인 버튼 UI 업데이트
+    const lb = document.getElementById('m-login-btn');
+    if (lb) { lb.textContent = '✅ 로그인됨'; lb.disabled = true; }
+    return oPod;
+  }
+
+  // 로그인 안 된 상태에서 주문 시도 → order-service(JwtVerifier)가 401 반환
+  async function m_loginGuard() {
+    mShowScreen('login');
+    mLog('sys', '═══ ⚠ 인증 체크 (JwtVerifier) ═══');
+    mSetStatus('error', '❌ 로그인 필요');
+    mLog('browser', 'Browser: POST /api/orders (Authorization 헤더 없음)');
+    await sendPacket('scene-msa', 'm-browser', 'm-order', 'error', 'POST', 700);
+    const oPod = pickPod('m', 'order');
+    pulsePod('m', 'order', oPod, 'error', 1100);
+    mLog('err', `Order Pod ${oPod}: JwtVerifier — Authorization 헤더 없음 → 인증 실패`);
+    mLog('err', `Order Pod ${oPod}: OrderController.authenticate() → throw 401 Unauthorized`);
+    await sleep(700);
+    await sendPacket('scene-msa', 'm-order', 'm-browser', 'error', '401', 700);
+    mLog('err', 'Browser: 401 Unauthorized 수신 → 로그인 필요');
+    mSetStep('⚠ 인증 실패 — 먼저 "로그인" 버튼을 눌러주세요');
+  }
+
+  async function m_runHappyPath() {
+    if (mBusy) return;
+    mSetBusy(true);
+    if (!mLoggedIn) {
+      await m_loginGuard();
+      mSetBusy(false);
+      return;
+    }
+    mLog('sys', '═══ Happy Path 시작 ═══');
+    mSetStep('① 로그인된 세션으로 주문 요청');
+
+    const oPod = await m_doLogin();
+
+    // User clicks order button → initial event
+    mSetStep('② 주문하기 클릭 → order-created-event 발행');
+    mSetStatus('pending', '주문중...');
+    mLog('browser', 'Browser: POST /api/orders (MacBook Pro ×1)');
+    await sendPacket('scene-msa', 'm-browser', 'm-order', 'rest', 'POST', 650);
+    pulsePod('m', 'order', oPod, 'active', 900);
+    const orderId = ++mOrderCounter;
+    mAddOrderRow(orderId, 1, 1, 1, 'PENDING');
+    mLog('db', `order_tb INSERT (id=${orderId}, status=PENDING)`);
+    mLog('order', `Order Pod ${oPod}: order-created-event 발행`);
+    await sendPacket('scene-msa', 'm-order', 'm-kafka', 'kafka', '▶', 650);
+    mEnqueue('order-created-event');
+
+    // Set up step queue (user clicks ▶ buttons to advance)
+    mSetupSteps([
+      { topic: 'order-created-event', label: 'Orchestrator가 주문 이벤트 소비 → 재고차감 명령 발행', fn: async () => {
+        const orPod1 = pickPod('m', 'orchestrator');
+        await sendPacket('scene-msa', 'm-kafka', 'm-orchestrator', 'kafka', '◀', 600);
+        pulsePod('m', 'orchestrator', orPod1, 'active', 900);
+        mConsume('order-created-event');
+        mLog('orch', `Orchestrator Pod ${orPod1}: WorkflowState 저장 → product-decrease-command 발행`);
+        await sendPacket('scene-msa', 'm-orchestrator', 'm-kafka', 'kafka', '▶', 600);
+        mEnqueue('product-decrease-command');
+      }},
+      { topic: 'product-decrease-command', label: 'Product가 재고 차감 → 재고차감 이벤트 발행', fn: async () => {
+        const pPod = pickPod('m', 'product');
+        await sendPacket('scene-msa', 'm-kafka', 'm-product', 'kafka', '◀', 600);
+        pulsePod('m', 'product', pPod, 'active', 900);
+        mConsume('product-decrease-command');
+        mAddProcessedRow(`saga-${orderId}-decrease`, 'product');
+        mLog('db', `processed_message_tb INSERT saga-${orderId}-decrease`);
+        mUpdateCell('c-prod-1-qty', 9, 'changed');
+        mLog('db', 'product_tb: quantity 10 → 9 (UPDATE)');
+        await sleep(400);
+        mLog('product', 'Product → Kafka: product-decreased-event (success=true)');
+        await sendPacket('scene-msa', 'm-product', 'm-kafka', 'kafka', '▶', 600);
+        mEnqueue('product-decreased-event');
+        pulsePod('m', 'product', pPod, 'success', 700);
+      }},
+      { topic: 'product-decreased-event', label: 'Orchestrator가 성공 확인 → 배송생성 명령 발행', fn: async () => {
+        const orPod2 = pickPod('m', 'orchestrator');
+        await sendPacket('scene-msa', 'm-kafka', 'm-orchestrator', 'kafka', '◀', 600);
+        pulsePod('m', 'orchestrator', orPod2, 'active', 900);
+        mConsume('product-decreased-event');
+        mLog('orch', 'Orchestrator: 재고 성공 확인 → delivery-create-command 발행');
+        await sendPacket('scene-msa', 'm-orchestrator', 'm-kafka', 'kafka', '▶', 600);
+        mEnqueue('delivery-create-command');
+      }},
+      { topic: 'delivery-create-command', label: 'Delivery가 배송 생성 → 배송생성 이벤트 발행', fn: async () => {
+        const dPod = pickPod('m', 'delivery');
+        await sendPacket('scene-msa', 'm-kafka', 'm-delivery', 'kafka', '◀', 600);
+        pulsePod('m', 'delivery', dPod, 'active', 900);
+        mConsume('delivery-create-command');
+        mAddProcessedRow(`saga-${orderId}-create-delivery`, 'delivery');
+        mAddDeliveryRow(orderId, orderId, 'Addr 4', 'PENDING');
+        mLog('db', `delivery_tb INSERT (id=${orderId}, status=PENDING)`);
+        await sleep(400);
+        mLog('deliv', 'Delivery → Kafka: delivery-created-event');
+        await sendPacket('scene-msa', 'm-delivery', 'm-kafka', 'kafka', '▶', 600);
+        mEnqueue('delivery-created-event');
+      }},
+      { topic: 'delivery-created-event', label: 'Orchestrator ACK + 배송완료 시뮬레이션', fn: async () => {
+        await sendPacket('scene-msa', 'm-kafka', 'm-orchestrator', 'kafka', '◀', 600);
+        const orPod = pickPod('m', 'orchestrator');
+        pulsePod('m', 'orchestrator', orPod, 'active', 700);
+        mConsume('delivery-created-event');
+        mLog('orch', 'Orchestrator: 배송 생성 확인 → 배송완료 이벤트 대기');
+        await sleep(500);
+        mLog('sys', '────── 배송 기사님이 "완료" 버튼 ──────');
+        const dPod = pickPod('m', 'delivery');
+        pulsePod('m', 'delivery', dPod, 'active', 700);
+        mUpdateDeliveryStatus(orderId, 'COMPLETED', 'success');
+        mLog('db', 'delivery_tb: status PENDING → COMPLETED (UPDATE)');
+        mLog('deliv', 'Delivery → Kafka: delivery-completed-event');
+        await sendPacket('scene-msa', 'm-delivery', 'm-kafka', 'kafka', '▶', 600);
+        mEnqueue('delivery-completed-event');
+      }},
+      { topic: 'delivery-completed-event', label: 'Orchestrator → 주문완료 명령 발행', fn: async () => {
+        const orPod3 = pickPod('m', 'orchestrator');
+        await sendPacket('scene-msa', 'm-kafka', 'm-orchestrator', 'kafka', '◀', 600);
+        pulsePod('m', 'orchestrator', orPod3, 'active', 900);
+        mConsume('delivery-completed-event');
+        mLog('orch', 'Orchestrator: 사가 최종 단계 → order-complete-command 발행');
+        await sendPacket('scene-msa', 'm-orchestrator', 'm-kafka', 'kafka', '▶', 600);
+        mEnqueue('order-complete-command');
+      }},
+      { topic: 'order-complete-command', label: 'Order 완료처리 + WebSocket 푸시', fn: async () => {
+        await sendPacket('scene-msa', 'm-kafka', 'm-order', 'kafka', '◀', 600);
+        pulsePod('m', 'order', oPod, 'active', 900);
+        mConsume('order-complete-command');
+        mAddProcessedRow(`saga-${orderId}-complete`, 'order');
+        mUpdateOrderStatus(orderId, 'COMPLETED', 'success');
+        mLog('db', 'order_tb: status PENDING → COMPLETED (UPDATE)');
+        await sleep(300);
+        mLog('ws', 'Order Pod → WebSocketHandler: convertAndSend("/topic/orders/1", ...)');
+        await sendPacket('scene-msa', `m-pod-order-${oPod}`, 'm-ws-comp', 'websocket', '📢', 500);
+        highlight('m-ws-comp', 'active', 900);
+        await sleep(200);
+        mLog('ws', 'WebSocketHandler → Browser: /topic/orders/1 { orderId:' + orderId + ' }');
+        await sendPacket('scene-msa', 'm-ws-comp', 'm-browser', 'websocket', '📢', 700);
+        pulsePod('m', 'order', oPod, 'success', 900);
+        mSetStatus('success', '✅ 주문완료! (주문번호: ' + orderId + ')');
+        mLog('ok', `🎉 Browser: "주문완료!" 알림 수신 (주문번호 ${orderId})`);
+      }},
+    ], () => {
+      mSetStep('✅ Happy Path 완료 (총 7단계)');
+      mLog('ok', '═══ Happy Path 완료 ═══');
+      mSetBusy(false);
+    });
+  }
+
+  async function m_runFailPath() {
+    if (mBusy) return;
+    mSetBusy(true);
+    if (!mLoggedIn) {
+      await m_loginGuard();
+      mSetBusy(false);
+      return;
+    }
+    mLog('sys', '═══ Fail Path 시작: iPhone 15 (재고 0) 주문 ═══');
+    mSetStep('① 로그인된 세션으로 주문 요청');
+    const oPod = await m_doLogin();
+
+    // Initial order
+    mSetStep('② iPhone 15 주문 → order-created-event 발행');
+    mSetStatus('pending', '주문중...');
+    mLog('browser', 'Browser: POST /api/orders (iPhone 15 ×1)');
+    await sendPacket('scene-msa', 'm-browser', 'm-order', 'rest', 'POST', 650);
+    pulsePod('m', 'order', oPod, 'active', 900);
+    const orderId = ++mOrderCounter;
+    mAddOrderRow(orderId, 1, 2, 1, 'PENDING');
+    mLog('db', `order_tb INSERT (id=${orderId}, product_id=2, status=PENDING)`);
+    await sendPacket('scene-msa', 'm-order', 'm-kafka', 'kafka', '▶', 650);
+    mEnqueue('order-created-event');
+
+    mSetupSteps([
+      { topic: 'order-created-event', label: 'Orchestrator 소비 → product-decrease-command 발행', fn: async () => {
+        const orPod1 = pickPod('m', 'orchestrator');
+        await sendPacket('scene-msa', 'm-kafka', 'm-orchestrator', 'kafka', '◀', 600);
+        pulsePod('m', 'orchestrator', orPod1, 'active', 900);
+        mConsume('order-created-event');
+        mLog('orch', `Orchestrator Pod ${orPod1}: product-decrease-command 발행`);
+        await sendPacket('scene-msa', 'm-orchestrator', 'm-kafka', 'kafka', '▶', 600);
+        mEnqueue('product-decrease-command');
+      }},
+      { topic: 'product-decrease-command', label: 'Product 재고 검증 → 실패! (재고 0)', fn: async () => {
+        const pPod = pickPod('m', 'product');
+        await sendPacket('scene-msa', 'm-kafka', 'm-product', 'kafka', '◀', 600);
+        pulsePod('m', 'product', pPod, 'active', 500);
+        mConsume('product-decrease-command');
+        mAddProcessedRow(`saga-${orderId}-decrease`, 'product');
+        await sleep(400);
+        pulsePod('m', 'product', pPod, 'error', 1000);
+        mLog('err', `Product Pod ${pPod}: validateQuantity 실패! (재고 0 < 1)`);
+        mLog('product', 'Product → Kafka: product-decreased-event (success=FALSE)');
+        await sendPacket('scene-msa', 'm-product', 'm-kafka', 'error', '▶', 600);
+        mEnqueue('product-decreased-event');
+      }},
+      { topic: 'product-decreased-event', label: 'Orchestrator 실패 감지 → 보상: order-cancel-command 발행', fn: async () => {
+        const orPod2 = pickPod('m', 'orchestrator');
+        await sendPacket('scene-msa', 'm-kafka', 'm-orchestrator', 'kafka', '◀', 600);
+        pulsePod('m', 'orchestrator', orPod2, 'error', 900);
+        mConsume('product-decreased-event');
+        mLog('err', 'Orchestrator: 실패 감지 → order-cancel-command 발행 (보상)');
+        await sendPacket('scene-msa', 'm-orchestrator', 'm-kafka', 'error', '▶', 600);
+        mEnqueue('order-cancel-command');
+      }},
+      { topic: 'order-cancel-command', label: 'Order 취소 처리 + WebSocket 에러 푸시', fn: async () => {
+        await sendPacket('scene-msa', 'm-kafka', 'm-order', 'error', '◀', 600);
+        pulsePod('m', 'order', oPod, 'error', 900);
+        mConsume('order-cancel-command');
+        mAddProcessedRow(`saga-${orderId}-cancel`, 'order');
+        mUpdateOrderStatus(orderId, 'CANCELLED', 'changed');
+        mLog('db', 'order_tb: status PENDING → CANCELLED');
+        await sleep(400);
+        mLog('ws', 'Order Pod → WebSocketHandler: convertAndSend("/topic/orders/1", {error})');
+        await sendPacket('scene-msa', `m-pod-order-${oPod}`, 'm-ws-comp', 'error', '⚠', 500);
+        highlight('m-ws-comp', 'active', 900);
+        await sleep(150);
+        await sendPacket('scene-msa', 'm-ws-comp', 'm-browser', 'error', '⚠', 700);
+        mSetStatus('error', '❌ 주문 실패 (재고 부족)');
+        mLog('ws', 'Browser: "주문 실패 (재고 부족)" 알림 수신');
+      }},
+    ], () => {
+      mSetStep('✅ Fail Path 완료 (보상 성공, 총 4단계)');
+      mLog('ok', '═══ Fail Path 완료: 재고는 여전히 0, 주문은 CANCELLED ═══');
+      mSetBusy(false);
+    });
+  }
+
+  async function m_runCancelPath() {
+    if (mBusy) return;
+    mSetBusy(true);
+    if (!mLoggedIn) {
+      await m_loginGuard();
+      mSetBusy(false);
+      return;
+    }
+    mLog('sys', '═══ Cancel Path: 배송 생성 후 사용자가 주문 취소 ═══');
+    mSetStep('① 로그인된 세션으로 취소 요청');
+    const oPod = await m_doLogin();
+
+    // Quick setup: pre-create the order/delivery so we can focus on cancel steps
+    mSetStep('② (사전 상태) 주문 PENDING · 재고 차감 · 배송 PENDING 생성');
+    mSetStatus('pending', '주문 준비 상태...');
+    const orderId = ++mOrderCounter;
+    mAddOrderRow(orderId, 1, 3, 1, 'PENDING');
+    mLog('db', `order_tb INSERT (id=${orderId}, product_id=3 AirPods, status=PENDING)`);
+    mUpdateCell('c-prod-3-qty', 9, 'changed');
+    mAddProcessedRow(`saga-${orderId}-decrease`, 'product');
+    mLog('db', 'product_tb(AirPods): 10 → 9 (이미 차감됨)');
+    mAddProcessedRow(`saga-${orderId}-create-delivery`, 'delivery');
+    mAddDeliveryRow(orderId, orderId, 'Addr 4', 'PENDING');
+    mLog('db', `delivery_tb INSERT (id=${orderId}, status=PENDING)`);
+    await sleep(600);
+
+    // User clicks cancel → enqueue first step
+    mSetStep('③ 사용자가 주문 취소 클릭 → order-cancel-command 발행');
+    mLog('browser', `Browser: PUT /api/orders/${orderId} { status: CANCELLED }`);
+    await sendPacket('scene-msa', 'm-browser', 'm-order', 'rest', 'PUT', 650);
+    pulsePod('m', 'order', oPod, 'active', 900);
+    mUpdateOrderStatus(orderId, 'CANCELLED', 'changed');
+    mLog('db', 'order_tb: status PENDING → CANCELLED');
+    mLog('order', 'Order → Kafka: order-cancel-command (보상 트리거)');
+    await sendPacket('scene-msa', 'm-order', 'm-kafka', 'error', '▶', 600);
+    mEnqueue('order-cancel-command');
+
+    mSetupSteps([
+      { topic: 'order-cancel-command', label: 'Orchestrator → product-increase-command 발행 (재고 복구)', fn: async () => {
+        const orPod = pickPod('m', 'orchestrator');
+        await sendPacket('scene-msa', 'm-kafka', 'm-orchestrator', 'error', '◀', 600);
+        pulsePod('m', 'orchestrator', orPod, 'error', 900);
+        mConsume('order-cancel-command');
+        mLog('orch', 'Orchestrator: product-increase-command 발행 (보상)');
+        await sendPacket('scene-msa', 'm-orchestrator', 'm-kafka', 'error', '▶', 600);
+        mEnqueue('product-increase-command');
+      }},
+      { topic: 'product-increase-command', label: 'Product 재고 복구 + WebSocket 취소 알림', fn: async () => {
+        const pPod = pickPod('m', 'product');
+        await sendPacket('scene-msa', 'm-kafka', 'm-product', 'error', '◀', 600);
+        pulsePod('m', 'product', pPod, 'success', 900);
+        mConsume('product-increase-command');
+        mAddProcessedRow(`saga-${orderId}-increase`, 'product');
+        mUpdateCell('c-prod-3-qty', 10, 'success');
+        mLog('db', 'product_tb(AirPods): 9 → 10 (복구)');
+        await sleep(400);
+        mLog('ws', 'Order Pod → WebSocketHandler: convertAndSend("/topic/orders/1", {cancel})');
+        await sendPacket('scene-msa', `m-pod-order-${oPod}`, 'm-ws-comp', 'websocket', '✖', 500);
+        highlight('m-ws-comp', 'active', 900);
+        await sleep(150);
+        await sendPacket('scene-msa', 'm-ws-comp', 'm-browser', 'websocket', '✖', 700);
+        mSetStatus('error', '❌ 주문이 취소되었습니다');
+        mLog('ws', 'Browser: 취소 알림 수신');
+      }},
+    ], () => {
+      mSetStep('✅ Cancel Path 완료 (총 2단계)');
+      mLog('ok', '═══ Cancel Path 완료: 재고 복구 + 주문 CANCELLED ═══');
+      mSetBusy(false);
+    });
+  }
+
+  function m_reset() {
+    document.getElementById('m-log').innerHTML = '';
+    mKafkaCount = 0;
+    document.getElementById('m-msg-count').textContent = '0';
+    document.querySelectorAll('.kafka-topic .tqueue').forEach(q => q.innerHTML = '');
+    document.querySelectorAll('.kafka-topic').forEach(el => el.classList.remove('active','ready'));
+    mResetStepButtons();
+    mStepQueue = [];
+    mStepIdx = 0;
+    mStepBusy = false;
+    mStepOnComplete = null;
+    mSetStep('대기중');
+    mSetBusy(false);
+    mOrderCounter = 3;
+    // 로그인 상태 리셋
+    mLoggedIn = false;
+    const lb = document.getElementById('m-login-btn');
+    if (lb) { lb.textContent = '로그인'; lb.disabled = false; }
+    // Reset DB
+    mUpdateCell('c-prod-1-qty', 10, 'changed');
+    mUpdateCell('c-prod-2-qty', 0, 'changed');
+    mUpdateCell('c-prod-3-qty', 10, 'changed');
+    document.getElementById('tb-order').innerHTML = '';
+    document.getElementById('tb-delivery').innerHTML = '';
+    document.getElementById('tb-processed').innerHTML = '';
+    // Reset browser screen
+    mShowScreen('login');
+    mSetWs(false);
+    mSetStatus('idle', '먼저 로그인하세요');
+    mLog('sys', '리셋 완료. 먼저 브라우저에서 "로그인" 버튼을 눌러주세요.');
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // TAB 3 — Ingress Tunnel (Minikube)
+  // ══════════════════════════════════════════════════════════════════
+  let tReqCount = 0;
+  let tBusy = false;
+  let tStep = 0;  // 0=대기, 1~7=진행중, 8=완료
+
+  function tSetStep(s) { document.getElementById('t-step-info').textContent = s; }
+  function tLog(type, m) { logTo('t-log', type, m); }
+  function tSetBusy(b) {
+    tBusy = b;
+    ['t-btn-step','t-btn-full','t-btn-roundtrip'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = b;
+    });
+  }
+  function tMarkStep(n, state) {
+    const li = document.querySelector(`#t-steps li[data-step="${n}"]`);
+    if (!li) return;
+    li.classList.remove('active','done');
+    if (state) li.classList.add(state);
+  }
+  function tClearSteps() {
+    document.querySelectorAll('#t-steps li').forEach(li => li.classList.remove('active','done'));
+  }
+
+  function drawTunnelArrows() {
+    const svg = document.getElementById('t-arrows');
+    const scene = document.getElementById('scene-tunnel');
+    if (!svg || !scene) return;
+    svg.innerHTML = '';
+    // Host-side vertical flow: Browser → hosts → tunnel
+    drawLineInSvg(svg, scene, 't-browser', 't-hosts');
+    drawLineInSvg(svg, scene, 't-hosts', 't-tunnel');
+    // Tunnel → Ingress (crossing VM boundary — handled by tunnel-pipe visual)
+    drawLineInSvg(svg, scene, 't-tunnel', 't-ingress');
+    // Ingress → rule → Service → Pods
+    drawLineInSvg(svg, scene, 't-ingress', 't-rule');
+    drawLineInSvg(svg, scene, 't-rule', 't-svc');
+    drawLineInSvg(svg, scene, 't-svc', 't-pod-1');
+    drawLineInSvg(svg, scene, 't-svc', 't-pod-2');
+  }
+
+  // Helper: pulse pipe
+  function tPipeOn() { document.getElementById('t-pipe').classList.add('active'); }
+  function tPipeOff() { document.getElementById('t-pipe').classList.remove('active'); }
+
+  // ───── Step sequence (a single request journey) ─────
+  async function tPlayStep(n) {
+    switch(n) {
+      case 1:
+        tSetStep('① 주소창 입력');
+        tMarkStep(1, 'active');
+        highlight('t-browser', 'active', 1200);
+        tLog('rest', 'Browser: GET http://metacoding.local 요청 시작');
+        await sleep(650);
+        tMarkStep(1, 'done');
+        break;
+
+      case 2:
+        tSetStep('② /etc/hosts 조회');
+        tMarkStep(2, 'active');
+        highlight('t-hosts', 'active', 1200);
+        await sendPacket('scene-tunnel', 't-browser', 't-hosts', 'rest', 'DNS?', 600);
+        tLog('sys', 'resolver: metacoding.local → 127.0.0.1 (local hosts 파일 hit)');
+        await sleep(500);
+        tMarkStep(2, 'done');
+        break;
+
+      case 3:
+        tSetStep('③ 127.0.0.1:80 으로 접속');
+        tMarkStep(3, 'active');
+        highlight('t-tunnel', 'active', 1400);
+        await sendPacket('scene-tunnel', 't-hosts', 't-tunnel', 'rest', 'TCP', 600);
+        tLog('rest', 'tunnel: 127.0.0.1:80 SYN 수신 — minikube tunnel 프로세스가 받음');
+        await sleep(500);
+        tMarkStep(3, 'done');
+        break;
+
+      case 4:
+        tSetStep('④ 터널 통과 → Minikube 내부로 포워딩');
+        tMarkStep(4, 'active');
+        tPipeOn();
+        tLog('ingress', 'tunnel: Host 127.0.0.1:80 → Minikube VM:80 포워딩');
+        await sendPacket('scene-tunnel', 't-tunnel', 't-ingress', 'rest', '▶', 1000);
+        await sleep(300);
+        tPipeOff();
+        tMarkStep(4, 'done');
+        break;
+
+      case 5:
+        tSetStep('⑤ Node의 80 포트 = Ingress Controller Pod');
+        tMarkStep(5, 'active');
+        highlight('t-ingress', 'active', 1400);
+        tLog('ingress', 'ingress-nginx: hostPort 80 으로 트래픽 수신 (Pod이 Node 포트 점유)');
+        await sleep(700);
+        tMarkStep(5, 'done');
+        break;
+
+      case 6:
+        tSetStep('⑥ Ingress Rule 매칭');
+        tMarkStep(6, 'active');
+        highlight('t-rule', 'active', 1200);
+        await sendPacket('scene-tunnel', 't-ingress', 't-rule', 'rest', 'host?', 600);
+        tLog('ingress', 'rule: host=metacoding.local, path=/api/login → user-service:8083');
+        await sleep(400);
+        highlight('t-svc', 'active', 1200);
+        await sendPacket('scene-tunnel', 't-rule', 't-svc', 'rest', '', 600);
+        tLog('rest', 'kube-proxy: ClusterIP → endpoints 선택 (로드밸런싱)');
+        await sleep(400);
+        tMarkStep(6, 'done');
+        break;
+
+      case 7: {
+        tSetStep('⑦ Service → Pod → 응답');
+        tMarkStep(7, 'active');
+        const podIdx = (tReqCount % 2) + 1;
+        const podId = `t-pod-${podIdx}`;
+        highlight(podId, 'active', 1200);
+        await sendPacket('scene-tunnel', 't-svc', podId, 'rest', 'P'+podIdx, 600);
+        tLog('rest', `user-pod-${podIdx}: 요청 처리 (200 OK)`);
+        await sleep(400);
+        // Response path: animate back to browser briefly
+        highlight(podId, 'success', 800);
+        await sendPacket('scene-tunnel', podId, 't-svc', 'websocket', '200', 500);
+        await sendPacket('scene-tunnel', 't-svc', 't-ingress', 'websocket', '', 500);
+        tPipeOn();
+        await sendPacket('scene-tunnel', 't-ingress', 't-tunnel', 'websocket', '◀', 900);
+        tPipeOff();
+        await sendPacket('scene-tunnel', 't-tunnel', 't-browser', 'websocket', '200', 600);
+        highlight('t-browser', 'success', 1000);
+        tLog('ws', 'Browser: 응답 도착 ✓ (NodePort / LoadBalancer 사용 안 함)');
+        tReqCount++;
+        document.getElementById('t-req-count').textContent = tReqCount;
+        tMarkStep(7, 'done');
+        break;
+      }
+    }
+  }
+
+  async function tunnelStepByStep() {
+    if (tBusy) return;
+    if (tStep >= 7) {
+      tunnelReset();
+      return;
+    }
+    tSetBusy(true);
+    tStep++;
+    await tPlayStep(tStep);
+    if (tStep >= 7) {
+      tSetStep('✅ 완료 — 다시 누르면 리셋');
+      tLog('sys', '═══ 1 요청 완료. 총 홉 수: 7 ═══');
+    }
+    tSetBusy(false);
+  }
+
+  async function tunnelFullFlow() {
+    if (tBusy) return;
+    tunnelReset();
+    tSetBusy(true);
+    tLog('sys', '═══ 전체 흐름 자동 재생 시작 ═══');
+    for (let i = 1; i <= 7; i++) {
+      tStep = i;
+      await tPlayStep(i);
+      await sleep(200);
+    }
+    tSetStep('✅ 완료');
+    tLog('sys', '═══ 전체 흐름 완료 ═══');
+    tSetBusy(false);
+  }
+
+  async function tunnelRoundTrip() {
+    if (tBusy) return;
+    tunnelReset();
+    tSetBusy(true);
+    tLog('sys', '═══ 요청 + 응답 빠른 왕복 데모 ═══');
+    for (let i = 1; i <= 6; i++) {
+      tStep = i;
+      await tPlayStep(i);
+    }
+    tStep = 7;
+    await tPlayStep(7);
+    tSetStep('✅ 왕복 완료');
+    tSetBusy(false);
+  }
+
+  function tunnelReset() {
+    tStep = 0;
+    tClearSteps();
+    tPipeOff();
+    document.querySelectorAll('#scene-tunnel .t-card').forEach(c => c.classList.remove('active','success','error'));
+    document.querySelectorAll('#scene-tunnel .packet').forEach(p => p.remove());
+    tSetStep('대기중');
+    tLog('sys', '리셋 완료. 단계별 또는 자동 재생 버튼을 눌러주세요.');
+  }
+
+  // ══════════════════════════════════════════════════════════════════
+  // TAB 4 — Idempotency test (messageId)
+  // ══════════════════════════════════════════════════════════════════
+  let iIdempotencyOn = true;
+  let iBusy = false;
+  let iMsgIdCounter = 100;                // 다음에 발행할 새 messageId 시드
+  let iCurrentMsgId = `saga-${iMsgIdCounter}-decrease`;
+  let iQueue = [];                        // [{ messageId, isDup }]
+  let iProdQty = 10;
+  let iDupCharges = 0;
+  let iCountSent = 0;
+  let iCountRecv = 0;
+  let iCountProcessed = 0;
+  let iCountSkipped = 0;
+  let iProcessedSet = new Set();          // 이미 기록된 messageId (DB 역할)
+
+  function iLog(t, m) { logTo('i-log', t, m); }
+  function iSetMode(onFlag) {
+    iIdempotencyOn = onFlag;
+    const chip = document.getElementById('i-mode-chip');
+    const info = document.getElementById('i-mode-info');
+    const btn = document.getElementById('i-btn-toggle');
+    if (onFlag) {
+      chip.className = 'idem-mode-chip on';
+      chip.textContent = '✅ 멱등성 검사 ON';
+      info.textContent = '멱등성 ON (안전)';
+      btn.className = 'btn btn-idem-toggle-on';
+      btn.textContent = '🛡 멱등성 검사 ON (클릭 → OFF)';
+    } else {
+      chip.className = 'idem-mode-chip off';
+      chip.textContent = '⚠ 멱등성 검사 OFF';
+      info.textContent = '멱등성 OFF (버그)';
+      btn.className = 'btn btn-idem-toggle-off';
+      btn.textContent = '⚠ 멱등성 검사 OFF (클릭 → ON)';
+    }
+  }
+  function i_toggleMode() {
+    iSetMode(!iIdempotencyOn);
+    iLog('sys', `모드 전환: 멱등성 검사 ${iIdempotencyOn ? 'ON 🛡' : 'OFF ⚠'}`);
+  }
+
+  function iSetBusy(b) {
+    iBusy = b;
+    ['i-btn-toggle','i-btn-new','i-btn-dup'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.disabled = b;
+    });
+  }
+
+  function iUpdateCounters() {
+    document.getElementById('i-count-sent').textContent = iCountSent;
+    document.getElementById('i-count-recv').textContent = iCountRecv;
+    document.getElementById('i-count-processed').textContent = iCountProcessed;
+    document.getElementById('i-count-skipped').textContent = iCountSkipped;
+    document.getElementById('i-queue-count').textContent = iQueue.length;
+    document.getElementById('i-dup-count').textContent = iDupCharges;
+  }
+
+  function iUpdateConsumeBtn() {
+    const topic = document.getElementById('i-topic');
+    const btn = document.getElementById('i-consume-btn');
+    if (iQueue.length > 0) {
+      topic.classList.add('ready','active');
+      btn.textContent = `▶ 소비 (${iQueue.length})`;
+    } else {
+      topic.classList.remove('ready');
+      btn.textContent = '▶ 소비 대기';
+      if (iQueue.length === 0) topic.classList.remove('active');
+    }
+  }
+
+  function iEnqueue(messageId, isDup) {
+    iQueue.push({ messageId, isDup });
+    const q = document.getElementById('i-topic-queue');
+    const chip = document.createElement('div');
+    chip.className = 'msg-chip' + (isDup ? ' dup' : '');
+    chip.textContent = messageId + (isDup ? ' 🔁' : '');
+    q.appendChild(chip);
+    iCountSent++;
+    iUpdateCounters();
+    iUpdateConsumeBtn();
+    iLog('kafka', `Kafka ← [${isDup ? '🔁 중복' : '신규'}] messageId="${messageId}" 적재`);
+  }
+
+  function iResetStepHighlights() {
+    ['i-step-1','i-step-2','i-step-3'].forEach(id => {
+      const el = document.getElementById(id);
+      el.classList.remove('hit','miss','dim');
+    });
+  }
+
+  function iSetResult(text, cls) {
+    const box = document.getElementById('i-result');
+    const span = document.getElementById('i-result-text');
+    span.textContent = text;
+    box.classList.remove('hit','miss');
+    if (cls) box.classList.add(cls);
+  }
+
+  async function i_sendNew() {
+    if (iBusy) return;
+    iMsgIdCounter++;
+    iCurrentMsgId = `saga-${iMsgIdCounter}-decrease`;
+    document.getElementById('i-next-msgid').textContent = iCurrentMsgId;
+    iLog('orch', `Producer: 새 메시지 생성 → messageId="${iCurrentMsgId}"`);
+    highlight('i-producer', 'active', 700);
+    await sendPacket('scene-idem', 'i-producer', 'i-topic', 'kafka', '▶', 650);
+    iEnqueue(iCurrentMsgId, false);
+  }
+
+  async function i_sendDuplicate() {
+    if (iBusy) return;
+    // at-least-once: 직전에 발행한 messageId 를 그대로 다시 보냄
+    iLog('orch', `⚠ Producer: 동일 messageId="${iCurrentMsgId}" 재전송 (네트워크 재시도 시뮬레이션)`);
+    highlight('i-producer', 'active', 700);
+    await sendPacket('scene-idem', 'i-producer', 'i-topic', 'error', '🔁', 650);
+    iEnqueue(iCurrentMsgId, true);
+  }
+
+  async function i_consumeOne() {
+    if (iBusy || iQueue.length === 0) return;
+    iSetBusy(true);
+    iResetStepHighlights();
+
+    const msg = iQueue.shift();
+    // remove first chip from queue DOM
+    const q = document.getElementById('i-topic-queue');
+    if (q.firstChild) {
+      const chip = q.firstChild;
+      chip.style.transition = 'opacity 300ms';
+      chip.style.opacity = '0';
+      setTimeout(() => chip.remove(), 300);
+    }
+
+    iCountRecv++;
+    iUpdateCounters();
+    iLog('kafka', `Consumer ← Kafka 메시지 수신: messageId="${msg.messageId}"${msg.isDup ? ' (🔁 중복)' : ''}`);
+
+    // Fly packet from Kafka → Consumer
+    await sendPacket('scene-idem', 'i-topic', 'i-consumer', msg.isDup ? 'error' : 'kafka', '◀', 600);
+    highlight('i-consumer', 'active', 900);
+
+    if (iIdempotencyOn) {
+      // Step 1: SELECT check
+      const step1 = document.getElementById('i-step-1');
+      step1.classList.add('hit');
+      iLog('db', `Product → DB: SELECT 1 FROM processed_message_tb WHERE message_id = '${msg.messageId}'`);
+      await sleep(600);
+
+      const already = iProcessedSet.has(msg.messageId);
+
+      // Step 2: decide
+      const step2 = document.getElementById('i-step-2');
+      if (already) {
+        step2.classList.add('hit');
+        iLog('ok', `✅ 멱등성 HIT! "${msg.messageId}" 는 이미 처리됨 → skip (재고 변화 없음)`);
+        iSetResult(`✅ 멱등성 HIT — messageId="${msg.messageId}" 스킵 (재고 유지: ${iProdQty})`, 'hit');
+        // Also add a "skipped" row visually (strikethrough)
+        iAppendProcessedRow(msg.messageId, 'product', 'skipped');
+        iCountSkipped++;
+        await sleep(500);
+        // Step 3 stays dim (not executed)
+        document.getElementById('i-step-3').classList.add('dim');
+      } else {
+        step2.classList.add('miss');
+        iLog('product', `➡ MISS: "${msg.messageId}" 미처리 → 비즈니스 로직 실행`);
+        await sleep(400);
+
+        // Step 3: UPDATE + INSERT
+        const step3 = document.getElementById('i-step-3');
+        step3.classList.add('miss');
+        iProdQty--;
+        iProcessedSet.add(msg.messageId);
+        iUpdateProdQty(iProdQty, 'changed');
+        iAppendProcessedRow(msg.messageId, 'product');
+        iLog('db', `UPDATE product_tb SET quantity = ${iProdQty+1} → ${iProdQty}`);
+        iLog('db', `INSERT INTO processed_message_tb (message_id="${msg.messageId}")`);
+        iCountProcessed++;
+        iSetResult(`🆕 처리 완료 — messageId="${msg.messageId}" (재고: ${iProdQty+1} → ${iProdQty})`, 'miss');
+      }
+    } else {
+      // NO idempotency: Consumer just runs business logic blindly
+      const step1 = document.getElementById('i-step-1');
+      const step2 = document.getElementById('i-step-2');
+      step1.classList.add('dim');
+      step2.classList.add('dim');
+      iLog('err', '⚠ 멱등성 검사 OFF → 체크 없이 바로 비즈니스 로직 실행');
+      await sleep(400);
+
+      const step3 = document.getElementById('i-step-3');
+      step3.classList.add('miss');
+      iProdQty--;
+      const isDupCharge = msg.isDup; // already seen same messageId before
+      if (isDupCharge) iDupCharges++;
+      iUpdateProdQty(iProdQty, isDupCharge ? 'changed' : 'changed');
+      iLog('db', `UPDATE product_tb SET quantity = ${iProdQty+1} → ${iProdQty} ${isDupCharge ? '  ← 🔴 중복 차감!' : ''}`);
+      iCountProcessed++;
+      if (isDupCharge) {
+        iSetResult(`❌ 중복 차감 발생 — 같은 messageId="${msg.messageId}" 로 재고 또 차감 (재고: ${iProdQty+1} → ${iProdQty})`, 'miss');
+        iLog('err', `🚨 BUG: 같은 주문 1건인데 재고가 2번 차감됨 (messageId="${msg.messageId}")`);
+      } else {
+        iSetResult(`처리 완료 (가드 없음) — messageId="${msg.messageId}" (재고: ${iProdQty+1} → ${iProdQty})`, 'miss');
+      }
+    }
+
+    iUpdateCounters();
+    iUpdateConsumeBtn();
+    iSetBusy(false);
+  }
+
+  function iUpdateProdQty(v, type='changed') {
+    const el = document.getElementById('i-prod-qty');
+    el.textContent = v;
+    el.classList.remove('changed','success');
+    void el.offsetWidth;
+    el.classList.add(type);
+  }
+
+  function iAppendProcessedRow(messageId, service, extraCls) {
+    const tbody = document.getElementById('i-tb-processed');
+    const tr = document.createElement('tr');
+    tr.className = 'new-row' + (extraCls ? ' ' + extraCls : '');
+    const now = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+    const mark = extraCls === 'skipped' ? ' (skip)' : '';
+    tr.innerHTML = `<td>${messageId}${mark}</td><td>${service}</td><td>${now}</td>`;
+    tbody.appendChild(tr);
+    setTimeout(() => tr.classList.remove('new-row'), 800);
+  }
+
+  function i_reset() {
+    iQueue = [];
+    iProdQty = 10;
+    iDupCharges = 0;
+    iCountSent = 0;
+    iCountRecv = 0;
+    iCountProcessed = 0;
+    iCountSkipped = 0;
+    iProcessedSet.clear();
+    iMsgIdCounter = 100;
+    iCurrentMsgId = `saga-${iMsgIdCounter}-decrease`;
+    document.getElementById('i-next-msgid').textContent = iCurrentMsgId;
+    document.getElementById('i-topic-queue').innerHTML = '';
+    document.getElementById('i-tb-processed').innerHTML = '';
+    iUpdateProdQty(10, 'changed');
+    iUpdateCounters();
+    iResetStepHighlights();
+    iSetResult('— (아직 소비한 메시지 없음)', null);
+    const topic = document.getElementById('i-topic');
+    topic.classList.remove('ready','active');
+    document.getElementById('i-consume-btn').textContent = '▶ 소비 대기';
+    iSetBusy(false);
+    iLog('sys', '리셋 완료. 모드는 현재 ' + (iIdempotencyOn ? 'ON' : 'OFF') + ' 입니다.');
+  }
+
+  function drawIdemArrows() {
+    const svg = document.getElementById('i-arrows');
+    const scene = document.getElementById('scene-idem');
+    if (!svg || !scene) return;
+    svg.innerHTML = '';
+    drawLineInSvg(svg, scene, 'i-producer', 'i-topic');
+    drawLineInSvg(svg, scene, 'i-topic', 'i-consumer');
+    drawLineInSvg(svg, scene, 'i-consumer', 'i-step-1');
+    drawLineInSvg(svg, scene, 'i-step-1', 'i-step-2');
+    drawLineInSvg(svg, scene, 'i-step-2', 'i-step-3');
+  }
+
+  // Wire the consume button + MSA 로그인 버튼
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('i-consume-btn');
+    if (btn) btn.addEventListener('click', () => {
+      if (!document.getElementById('i-topic').classList.contains('ready')) return;
+      i_consumeOne();
+    });
+    // MSA 시나리오의 로그인 버튼 → 독립적으로 로그인 수행
+    const loginBtn = document.getElementById('m-login-btn');
+    if (loginBtn && !loginBtn._wired) {
+      loginBtn._wired = true;
+      loginBtn.addEventListener('click', async () => {
+        if (mBusy) return;
+        if (mLoggedIn) { mLog('sys', '이미 로그인되어 있습니다.'); return; }
+        mSetBusy(true);
+        mLog('sys', '═══ 로그인 ═══');
+        mSetStep('① 로그인 요청 (POST /api/login)');
+        await m_doLogin();
+        mSetStep('✅ 로그인 완료 — 이제 주문 버튼을 누르세요');
+        mSetBusy(false);
+      });
+    }
+  });
+
+  // ══════════════════════════════════════════════════════════════════
+  // Init
+  // ══════════════════════════════════════════════════════════════════
+  window.addEventListener('load', () => {
+    drawK8sArrows();
+    drawMsaArrows();
+    drawTunnelArrows();
+    drawIdemArrows();
+    // Wire consume button (fallback if DOMContentLoaded already fired)
+    const cbtn = document.getElementById('i-consume-btn');
+    if (cbtn && !cbtn._wired) {
+      cbtn._wired = true;
+      cbtn.addEventListener('click', () => {
+        if (!document.getElementById('i-topic').classList.contains('ready')) return;
+        i_consumeOne();
+      });
+    }
+    iSetMode(true);
+    iUpdateCounters();
+    k8sLog('sys', '▷ 쿠버네티스 관점 시뮬레이터: 버튼을 눌러 실험을 시작하세요.');
+    mLog('sys', '▷ MSA 비즈니스 시뮬레이터: 먼저 브라우저의 "로그인" 버튼을 누르고 시나리오를 실행하세요.');
+    tLog('sys', '▷ Ingress 터널 시뮬레이터: 단계별 또는 자동 재생 버튼을 눌러보세요.');
+    iLog('sys', '▷ 멱등성 시뮬레이터: "새 메시지" → "동일 재전송" 순으로 클릭 후 ▶ 두 번 소비해보세요.');
+  });
+  window.addEventListener('resize', () => {
+    drawK8sArrows();
+    drawMsaArrows();
+    drawTunnelArrows();
+    drawIdemArrows();
+  });
+</script>
+</body>
+</html>

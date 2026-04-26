@@ -1,0 +1,1906 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<!-- ======= Open Skill Diary theme adapter (injected) ======= -->
+<style id="osd-theme-adapter">
+  /* Full-width override: remove max-width constraints from common layout containers */
+  html, body { max-width: 100% !important; }
+  body { padding-top: 56px !important; }
+  .layout, .simulator, .container, main, .wrap, .wrapper, .page, .app, .root,
+  [class*="container"], [class*="wrapper"] {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  /* Light theme: invert + hue-rotate gives a faithful light variant of any dark page.
+     Applied to body so the floating bar (sibling of body) is unaffected. */
+  html[data-osd-theme="light"] #osd-content-wrapper {
+    filter: invert(0.92) hue-rotate(180deg);
+    min-height: 100vh;
+  }
+  html[data-osd-theme="light"] body { background: #f7f8fb !important; }
+  /* Counter-invert media so images/videos render correctly */
+  html[data-osd-theme="light"] #osd-content-wrapper img,
+  html[data-osd-theme="light"] #osd-content-wrapper svg,
+  html[data-osd-theme="light"] #osd-content-wrapper video,
+  html[data-osd-theme="light"] #osd-content-wrapper canvas {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  /* Top floating bar — sits ABOVE the inverted body via a fixed element OUTSIDE body */
+  #osd-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 16px;
+    background: rgba(15, 22, 36, 0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    color: #e8eef9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  html[data-osd-theme="light"] #osd-bar {
+    background: rgba(255,255,255,0.92);
+    border-bottom: 1px solid #e3e8ef;
+    color: #1a2332;
+    box-shadow: 0 1px 3px rgba(20,30,50,0.06), 0 4px 16px rgba(20,30,50,0.04);
+  }
+  #osd-bar a, #osd-bar button {
+    color: inherit; background: transparent; border: 1px solid currentColor;
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    opacity: 0.85; transition: opacity .15s, transform .15s;
+    font-family: inherit;
+  }
+  #osd-bar a:hover, #osd-bar button:hover { opacity: 1; transform: translateY(-1px); }
+  #osd-bar .osd-bar__title { font-weight: 700; letter-spacing: -0.2px; opacity: 0.9; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #osd-bar .osd-bar__actions { display: flex; gap: 8px; flex-shrink: 0; }
+  #osd-bar .osd-bar__brand { font-weight: 700; font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+  @media (max-width: 640px) {
+    #osd-bar { padding: 8px 10px; font-size: 12px; }
+    #osd-bar .osd-bar__title { display: none; }
+  }
+</style>
+<script>
+  (function(){
+    try {
+      var t = localStorage.getItem('blog-theme') || 'dark';
+      document.documentElement.setAttribute('data-osd-theme', t);
+    } catch(e){}
+  })();
+</script>
+<!-- ======= /theme adapter ======= -->
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket 프로토콜 시뮬레이터</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+            background: #0a0e27;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        .header {
+            text-align: center;
+            padding: 28px 20px 8px;
+            background: linear-gradient(180deg, #111640 0%, #0a0e27 100%);
+        }
+        .header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #00d4ff, #7b61ff, #ff6b9d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 6px;
+        }
+        .header p { color: #8892b0; font-size: 0.9rem; }
+
+        /* ===== TAB NAV ===== */
+        .tab-nav {
+            display: flex;
+            justify-content: center;
+            gap: 4px;
+            padding: 18px 10px 0;
+            position: sticky; top: 0; z-index: 100;
+            background: #0a0e27;
+            flex-wrap: wrap;
+        }
+        .tab-btn {
+            padding: 10px 16px;
+            border: 1px solid #1e2a4a;
+            background: #111640;
+            color: #8892b0;
+            border-radius: 10px 10px 0 0;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .tab-btn:hover { background: #1a2150; color: #ccd6f6; }
+        .tab-btn.active {
+            background: #1a1f4e;
+            color: #00d4ff;
+            border-color: #00d4ff;
+            border-bottom: 2px solid #1a1f4e;
+        }
+
+        /* ===== SECTIONS ===== */
+        .section {
+            display: none;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 28px 20px 60px;
+        }
+        .section.active { display: block; }
+        .section-title { font-size: 1.4rem; color: #ccd6f6; margin-bottom: 6px; }
+        .section-desc { color: #8892b0; margin-bottom: 20px; line-height: 1.7; font-size: 0.92rem; }
+
+        /* ===== CARD ===== */
+        .card {
+            background: #111640;
+            border: 1px solid #1e2a4a;
+            border-radius: 14px;
+            padding: 22px;
+            margin-bottom: 18px;
+        }
+        .card-title {
+            font-size: 1.05rem;
+            color: #7b61ff;
+            margin-bottom: 12px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.65rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge-http { background: #1a3a2a; color: #4ade80; }
+        .badge-ws { background: #1a2a4a; color: #00d4ff; }
+        .badge-stomp { background: #2a1a4a; color: #c084fc; }
+
+        /* ===== BUTTONS ===== */
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.88rem;
+            font-weight: 600;
+            transition: all 0.25s;
+        }
+        .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .btn-primary { background: #00d4ff; color: #0a0e27; }
+        .btn-primary:hover:not(:disabled) { background: #33dfff; transform: translateY(-1px); }
+        .btn-purple { background: #7b61ff; color: #fff; }
+        .btn-purple:hover:not(:disabled) { background: #9580ff; transform: translateY(-1px); }
+        .btn-green { background: #4ade80; color: #0a0e27; }
+        .btn-green:hover:not(:disabled) { background: #6ee7a0; transform: translateY(-1px); }
+        .btn-pink { background: #ff6b9d; color: #fff; }
+        .btn-pink:hover:not(:disabled) { background: #ff8db5; transform: translateY(-1px); }
+        .btn-orange { background: #f59e0b; color: #0a0e27; }
+        .btn-orange:hover:not(:disabled) { background: #fbbf24; transform: translateY(-1px); }
+        .btn-cyan { background: #22d3ee; color: #0a0e27; }
+        .btn-cyan:hover:not(:disabled) { background: #67e8f9; transform: translateY(-1px); }
+        .btn-reset { background: #334155; color: #94a3b8; }
+        .btn-reset:hover { background: #475569; }
+        .btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+        /* ===== DIAGRAM ===== */
+        .diagram {
+            position: relative;
+            background: #0d1235;
+            border: 1px solid #1e2a4a;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* ===== NODES ===== */
+        .node {
+            position: absolute;
+            border-radius: 12px;
+            padding: 14px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.82rem;
+            z-index: 10;
+            transition: box-shadow 0.4s, border-color 0.4s;
+        }
+        .node-label { font-size: 0.65rem; color: #8892b0; margin-top: 4px; }
+        .node-client { background: #1a2a4a; border: 2px solid #00d4ff; color: #00d4ff; }
+        .node-server { background: #1a3a2a; border: 2px solid #4ade80; color: #4ade80; }
+        .node-broker { background: #2a1a3a; border: 2px solid #c084fc; color: #c084fc; }
+        .node-controller { background: #3a2a1a; border: 2px solid #f59e0b; color: #f59e0b; }
+        .node-sub { background: #1a2040; border: 2px solid #60a5fa; color: #60a5fa; }
+        .node-http { background: #1a3a2a; border: 2px solid #4ade80; color: #4ade80; }
+        .node-service { background: #1a2520; border: 2px solid #34d399; color: #34d399; }
+        .node-skip { background: #151830; border: 2px dashed #334155; color: #475569; }
+        .node.glow { box-shadow: 0 0 24px currentColor; }
+
+        /* ===== SVG LINES ===== */
+        .conn-line {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5; pointer-events: none;
+        }
+        .conn-line line, .conn-line path {
+            stroke: #1e2a4a;
+            stroke-width: 2;
+            stroke-dasharray: 6 4;
+            fill: none;
+            transition: stroke 0.5s, stroke-width 0.3s;
+        }
+        .l-active-http { stroke: #4ade80 !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; }
+        .l-active-ws { stroke: #00d4ff !important; stroke-width: 3 !important; stroke-dasharray: none !important; }
+        .l-active-stomp { stroke: #c084fc !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; }
+        .l-active-data { stroke: #f59e0b !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; }
+        .l-active-pink { stroke: #ff6b9d !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; }
+        .l-active-cyan { stroke: #22d3ee !important; stroke-width: 2.5 !important; stroke-dasharray: none !important; }
+        .l-pulse { animation: pulse-line 1.5s infinite; }
+        @keyframes pulse-line { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+        /* ===== LOG ===== */
+        .log-area {
+            background: #080b1e;
+            border: 1px solid #1e2a4a;
+            border-radius: 10px;
+            padding: 14px;
+            max-height: 240px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.76rem;
+            line-height: 1.7;
+            margin-top: 14px;
+        }
+        .log-area::-webkit-scrollbar { width: 6px; }
+        .log-area::-webkit-scrollbar-thumb { background: #2a3060; border-radius: 3px; }
+        .log-line { opacity: 0; animation: fadeIn 0.3s forwards; }
+        .log-time { color: #475569; }
+        .log-http { color: #4ade80; }
+        .log-ws { color: #00d4ff; }
+        .log-stomp { color: #c084fc; }
+        .log-info { color: #8892b0; }
+        .log-data { color: #f59e0b; }
+        .log-error { color: #f87171; }
+        .log-highlight { color: #ff6b9d; font-weight: 700; }
+        .log-cyan { color: #22d3ee; }
+        @keyframes fadeIn { to { opacity: 1; } }
+
+        /* ===== HTTP HEADERS ===== */
+        .http-headers {
+            background: #080b1e;
+            border: 1px solid #1e2a4a;
+            border-radius: 10px;
+            padding: 14px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.76rem;
+            line-height: 1.8;
+            margin-top: 12px;
+            overflow-x: auto;
+        }
+        .h-method { color: #4ade80; font-weight: 700; }
+        .h-url { color: #00d4ff; }
+        .h-key { color: #c084fc; }
+        .h-val { color: #f59e0b; }
+        .h-status { color: #ff6b9d; font-weight: 700; }
+        .h-comment { color: #475569; font-style: italic; }
+        .h-line { opacity: 0; animation: fadeIn 0.25s forwards; }
+
+        /* ===== STATUS BAR ===== */
+        .status-bar {
+            display: flex; align-items: center; gap: 10px;
+            padding: 10px 14px;
+            background: #0d1235;
+            border-radius: 8px;
+            margin-bottom: 14px;
+            font-size: 0.82rem;
+        }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            background: #334155; transition: all 0.3s;
+            flex-shrink: 0;
+        }
+        .status-dot.http { background: #4ade80; box-shadow: 0 0 8px #4ade80; }
+        .status-dot.ws { background: #00d4ff; box-shadow: 0 0 8px #00d4ff; }
+        .status-dot.stomp { background: #c084fc; box-shadow: 0 0 8px #c084fc; }
+
+        /* ===== STEPS ===== */
+        .steps { display: flex; gap: 4px; margin-bottom: 18px; flex-wrap: wrap; }
+        .step-chip {
+            padding: 5px 12px; border-radius: 20px;
+            font-size: 0.72rem; font-weight: 600;
+            background: #1e2a4a; color: #64748b;
+            transition: all 0.3s;
+        }
+        .step-chip.done { background: #1a3a2a; color: #4ade80; }
+        .step-chip.current { background: #1a2a4a; color: #00d4ff; border: 1px solid #00d4ff; }
+
+        /* ===== INPUT ===== */
+        .msg-input-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+        .msg-input {
+            flex: 1; min-width: 120px;
+            padding: 10px 14px; border: 1px solid #1e2a4a;
+            border-radius: 8px; background: #080b1e;
+            color: #ccd6f6; font-size: 0.88rem; outline: none;
+        }
+        .msg-input:focus { border-color: #7b61ff; }
+        .msg-input::placeholder { color: #475569; }
+
+        /* ===== SUBSCRIBER BOXES ===== */
+        .subscriber-list { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .subscriber-box {
+            background: #0d1235; border: 1px solid #1e2a4a;
+            border-radius: 10px; padding: 12px 14px;
+            min-width: 170px; flex: 1;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .subscriber-box.flash {
+            border-color: #00d4ff;
+            box-shadow: 0 0 15px rgba(0,212,255,0.3);
+        }
+        .subscriber-box .sub-name { font-size: 0.78rem; font-weight: 600; color: #60a5fa; margin-bottom: 4px; }
+        .subscriber-box .sub-topic { font-size: 0.68rem; color: #8892b0; margin-bottom: 6px; font-family: monospace; }
+        .subscriber-box .sub-msgs { font-size: 0.73rem; color: #ccd6f6; max-height: 80px; overflow-y: auto; }
+        .subscriber-box .sub-msgs div { padding: 2px 0; border-bottom: 1px solid #1e2a4a; animation: fadeIn 0.3s; }
+
+        /* ===== CODE BLOCK ===== */
+        .code-block {
+            background: #080b1e;
+            border: 1px solid #1e2a4a;
+            border-radius: 10px;
+            padding: 16px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 0.78rem;
+            line-height: 1.8;
+            overflow-x: auto;
+            margin: 12px 0;
+        }
+        .code-block .ck { color: #c084fc; } /* keyword */
+        .code-block .cs { color: #f59e0b; } /* string */
+        .code-block .cm { color: #4ade80; } /* method */
+        .code-block .cc { color: #475569; } /* comment */
+        .code-block .cn { color: #ff6b9d; } /* classname */
+        .code-block .cv { color: #60a5fa; } /* variable */
+        .code-block .cp { color: #ccd6f6; } /* plain */
+
+        /* ===== KEY DIFF HIGHLIGHT ===== */
+        .key-diff {
+            padding: 14px 18px;
+            border-radius: 10px;
+            margin: 14px 0;
+            font-size: 0.88rem;
+            line-height: 1.7;
+        }
+        .key-diff.pink { background: #2a1030; border-left: 4px solid #ff6b9d; }
+        .key-diff.orange { background: #2a1a10; border-left: 4px solid #f59e0b; }
+        .key-diff.cyan { background: #0a2a2a; border-left: 4px solid #22d3ee; }
+        .key-diff.green { background: #0a2a1a; border-left: 4px solid #4ade80; }
+
+        /* ===== CONNECTION TYPE BANNER ===== */
+        .conn-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 18px;
+            border-radius: 10px;
+            margin-bottom: 16px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+        .conn-banner .conn-icon {
+            flex-shrink: 0;
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.3rem; font-weight: 800;
+        }
+        .conn-banner.http-type {
+            background: linear-gradient(135deg, #0a2a1a 0%, #0d1235 100%);
+            border: 1.5px solid #4ade80;
+        }
+        .conn-banner.http-type .conn-icon {
+            background: #1a3a2a; color: #4ade80; border: 2px solid #4ade80;
+        }
+        .conn-banner.ws-type {
+            background: linear-gradient(135deg, #0a1a3a 0%, #0d1235 100%);
+            border: 1.5px solid #00d4ff;
+        }
+        .conn-banner.ws-type .conn-icon {
+            background: #1a2a4a; color: #00d4ff; border: 2px solid #00d4ff;
+        }
+        .conn-banner .conn-text strong { display: block; margin-bottom: 2px; }
+        .conn-banner .conn-text .conn-detail { font-size: 0.78rem; color: #8892b0; }
+
+        /* ===== WS TUNNEL VISUAL ===== */
+        .ws-tunnel {
+            position: absolute;
+            z-index: 3;
+            border-radius: 20px;
+            pointer-events: none;
+        }
+        .ws-tunnel-bg {
+            background: linear-gradient(90deg, rgba(0,212,255,0.06) 0%, rgba(0,212,255,0.02) 50%, rgba(0,212,255,0.06) 100%);
+            border: 1.5px solid rgba(0,212,255,0.2);
+            border-radius: 20px;
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+        }
+        .ws-tunnel-label {
+            position: absolute;
+            top: -10px; left: 50%;
+            transform: translateX(-50%);
+            background: #0d1235;
+            padding: 2px 12px;
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: #00d4ff;
+            border: 1px solid rgba(0,212,255,0.3);
+            border-radius: 10px;
+            white-space: nowrap;
+            letter-spacing: 0.5px;
+        }
+        .ws-tunnel-arrows {
+            position: absolute;
+            bottom: -10px; left: 50%;
+            transform: translateX(-50%);
+            background: #0d1235;
+            padding: 2px 10px;
+            font-size: 0.6rem;
+            color: #00d4ff;
+            border: 1px solid rgba(0,212,255,0.2);
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        /* HTTP arrow (one-way) */
+        .http-arrow-label {
+            position: absolute;
+            z-index: 6;
+            background: #0d1235;
+            padding: 2px 10px;
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: #4ade80;
+            border: 1px solid rgba(74,222,128,0.3);
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+
+        /* ===== PERSISTENT WS CONNECTION LINES ===== */
+        .conn-line line.ws-persistent {
+            stroke: rgba(0,212,255,0.35) !important;
+            stroke-width: 2 !important;
+            stroke-dasharray: none !important;
+            animation: ws-breathe 2.5s ease-in-out infinite;
+        }
+        @keyframes ws-breathe {
+            0%,100% { stroke: rgba(0,212,255,0.3); }
+            50% { stroke: rgba(0,212,255,0.55); }
+        }
+        /* When data flows over persistent line */
+        .conn-line line.ws-persistent.ws-active {
+            stroke: rgba(0,212,255,0.85) !important;
+            stroke-width: 3 !important;
+            animation: ws-active-pulse 0.8s ease-in-out infinite;
+        }
+        @keyframes ws-active-pulse {
+            0%,100% { stroke: rgba(0,212,255,0.7); }
+            50% { stroke: rgba(0,212,255,1); }
+        }
+
+        /* WS persistent label on diagram */
+        .ws-conn-label {
+            position: absolute;
+            z-index: 6;
+            background: rgba(13,18,53,0.9);
+            padding: 2px 8px;
+            font-size: 0.58rem;
+            font-weight: 600;
+            color: rgba(0,212,255,0.6);
+            border: 1px solid rgba(0,212,255,0.15);
+            border-radius: 8px;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        /* ===== WEBSOCKET SERVER CONTAINER ===== */
+        .ws-server-container {
+            position: absolute;
+            z-index: 2;
+            border: 2px dashed rgba(0, 212, 255, 0.4);
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(0,212,255,0.04) 0%, rgba(123,97,255,0.03) 100%);
+            pointer-events: none;
+        }
+        .ws-server-label {
+            position: absolute;
+            top: -12px; left: 24px;
+            background: #0d1235;
+            padding: 3px 14px;
+            font-size: 0.68rem;
+            font-weight: 700;
+            color: #00d4ff;
+            border: 1.5px solid rgba(0, 212, 255, 0.55);
+            border-radius: 10px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .ws-server-sublabel {
+            position: absolute;
+            bottom: -10px; right: 20px;
+            background: #0d1235;
+            padding: 2px 10px;
+            font-size: 0.58rem;
+            font-weight: 600;
+            color: rgba(0, 212, 255, 0.7);
+            border: 1px solid rgba(0, 212, 255, 0.25);
+            border-radius: 8px;
+            white-space: nowrap;
+        }
+
+        /* ===== FCM TAB STYLES ===== */
+        .node-fcm { background: #2a1030; border: 2px solid #ff6b9d; color: #ff6b9d; }
+        .node-mobile { background: #1a2520; border: 2px solid #34d399; color: #34d399; }
+        .node-admin { background: #1a3a2a; border: 2px solid #4ade80; color: #4ade80; }
+        .mobile-phone {
+            position: absolute;
+            z-index: 10;
+            background: linear-gradient(180deg, #1a2520 0%, #0d1f18 100%);
+            border: 2px solid #34d399;
+            color: #34d399;
+            border-radius: 18px 18px 14px 14px;
+            padding: 10px 10px 14px;
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.78rem;
+            transition: box-shadow 0.4s, border-color 0.4s;
+        }
+        .mobile-phone::before {
+            content: '';
+            position: absolute;
+            top: 4px; left: 50%; transform: translateX(-50%);
+            width: 30px; height: 4px;
+            background: #0a0e27;
+            border-radius: 4px;
+        }
+        .mobile-phone .phone-screen {
+            margin-top: 8px;
+            background: #0a0e27;
+            border-radius: 6px;
+            padding: 6px;
+            min-height: 46px;
+            font-size: 0.62rem;
+            color: #8892b0;
+            text-align: left;
+            overflow-y: auto;
+            max-height: 60px;
+        }
+        .mobile-phone.glow { box-shadow: 0 0 22px #34d399; }
+        .mobile-phone .phone-notif {
+            background: #1a3a2a;
+            color: #6ee7a0;
+            padding: 3px 5px;
+            border-radius: 4px;
+            margin-top: 3px;
+            animation: fadeIn 0.3s;
+            line-height: 1.3;
+        }
+    </style>
+</head>
+<body>
+<!-- ======= OSD floating bar (injected) ======= -->
+<div id="osd-bar" role="navigation" aria-label="블로그 네비게이션">
+  <a href="../index.html" class="osd-bar__brand" title="블로그 홈">◆ Open Skill Diary</a>
+  <div class="osd-bar__title">WebSocket 프로토콜 동작 시뮬레이터</div>
+  <div class="osd-bar__actions">
+    <a href="../index.html">← 목록</a>
+    <button type="button" id="osd-theme-toggle" aria-label="테마 전환">테마</button>
+  </div>
+</div>
+<script>
+  (function(){
+    var btn = document.getElementById('osd-theme-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      var cur = document.documentElement.getAttribute('data-osd-theme') || 'dark';
+      var next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-osd-theme', next);
+      try { localStorage.setItem('blog-theme', next); } catch(e){}
+    });
+  })();
+</script>
+<!-- ======= /OSD floating bar ======= -->
+
+<script>
+  // Wrap original body content so the light-mode filter applies only to that wrapper,
+  // not to the floating OSD bar.
+  (function(){
+    function wrap(){
+      var bar = document.getElementById('osd-bar');
+      var wrapper = document.createElement('div');
+      wrapper.id = 'osd-content-wrapper';
+      wrapper.style.cssText = 'transition: filter .25s;';
+      var nodes = Array.prototype.slice.call(document.body.childNodes);
+      nodes.forEach(function(n){
+        if (n === bar) return;
+        wrapper.appendChild(n);
+      });
+      // Re-insert wrapper at the end (after the bar)
+      document.body.appendChild(wrapper);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wrap, { once: true });
+    } else {
+      wrap();
+    }
+  })();
+</script>
+
+
+<div class="header">
+    <h1>WebSocket 프로토콜 시뮬레이터</h1>
+    <p>Spring Boot STOMP WebSocket — 5단계 진화 + FCM 비교</p>
+</div>
+
+<div class="tab-nav">
+    <button class="tab-btn active" data-tab="upgrade">1. HTTP→WS Upgrade</button>
+    <button class="tab-btn" data-tab="post">2. POST→Broker</button>
+    <button class="tab-btn" data-tab="direct">3. 직접 Broker</button>
+    <button class="tab-btn" data-tab="sendto">4. @SendTo</button>
+    <button class="tab-btn" data-tab="final">5. convertAndSend ★</button>
+    <button class="tab-btn" data-tab="fcm">6. Firebase FCM 🔔</button>
+</div>
+
+<!-- ================================================================ -->
+<!-- TAB 1: HTTP → WebSocket Upgrade                                  -->
+<!-- ================================================================ -->
+<div id="sec-upgrade" class="section active">
+    <h2 class="section-title">1. HTTP → WebSocket Upgrade 핸드셰이크</h2>
+    <p class="section-desc">
+        WebSocket은 독립 프로토콜이 아니라 <strong>HTTP 위에서 Upgrade 헤더</strong>를 통해 연결을 전환합니다.<br>
+        클라이언트가 <code>Upgrade: websocket</code> 헤더로 요청 → 서버가 <code>101 Switching Protocols</code> 응답 → TCP를 WebSocket으로 승격합니다.
+    </p>
+
+    <div class="steps" id="upgrade-steps">
+        <span class="step-chip" data-step="0">TCP 연결</span>
+        <span class="step-chip" data-step="1">HTTP Request</span>
+        <span class="step-chip" data-step="2">서버 검증</span>
+        <span class="step-chip" data-step="3">101 Response</span>
+        <span class="step-chip" data-step="4">WS 연결 수립</span>
+        <span class="step-chip" data-step="5">STOMP CONNECT</span>
+        <span class="step-chip" data-step="6">STOMP CONNECTED</span>
+    </div>
+
+    <div class="card">
+        <div class="diagram" id="upgrade-diagram" style="height:180px;">
+            <svg class="conn-line"><line id="up-line" x1="180" y1="90" x2="820" y2="90"/></svg>
+            <div class="node node-client" style="left:40px;top:50px;width:140px;">
+                Browser (Client)
+                <div class="node-label">new WebSocket('ws://host/connect')</div>
+            </div>
+            <div class="node node-server" style="right:40px;top:50px;width:160px;">
+                Spring Boot Server
+                <div class="node-label">@EnableWebSocketMessageBroker</div>
+            </div>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-dot" id="up-dot"></div>
+            <span id="up-status">대기 중 — 버튼을 눌러 핸드셰이크를 시작하세요</span>
+        </div>
+
+        <div class="http-headers" id="upgrade-headers" style="min-height:100px;"></div>
+
+        <div class="btn-row">
+            <button class="btn btn-primary" id="btn-up-start" onclick="startUpgrade()">핸드셰이크 시작</button>
+            <button class="btn btn-purple" id="btn-up-next" onclick="nextUpgradeStep()" disabled>다음 단계</button>
+            <button class="btn btn-reset" onclick="resetUpgrade()">초기화</button>
+        </div>
+    </div>
+    <div class="log-area" id="upgrade-log"></div>
+</div>
+
+<!-- ================================================================ -->
+<!-- TAB 2: POST /chat → Spring → SimpleBroker                       -->
+<!-- ================================================================ -->
+<div id="sec-post" class="section">
+    <h2 class="section-title">2. HTTP POST → Spring Controller → Simple Broker</h2>
+    <p class="section-desc">
+        웹소켓 메시지가 아닌 <strong>일반 HTTP POST 요청</strong>으로 메시지를 보냅니다.<br>
+        Spring Controller에서 DB 저장 후 <code>SimpMessageSendingOperations.convertAndSend()</code>로 Simple Broker에 전달합니다.<br>
+        이것이 현재 프로젝트의 <code>ChatController.save()</code> 메서드가 동작하는 방식입니다.
+    </p>
+
+    <!-- HTTP 단방향 연결 배너 -->
+    <div class="conn-banner http-type">
+        <div class="conn-icon">→</div>
+        <div class="conn-text">
+            <strong style="color:#4ade80;">HTTP 요청 (단방향, 비연결)</strong>
+            <div class="conn-detail">
+                매 요청마다 <strong>새로운 TCP 연결</strong>을 맺고 응답 후 끊어집니다.<br>
+                클라이언트 → 서버 <strong>한 방향</strong>만 가능. 서버가 먼저 보낼 수 없습니다.<br>
+                <code>form POST /chat</code> → 서버 내부에서 WebSocket Broker를 통해 구독자에게 Push합니다.
+            </div>
+        </div>
+    </div>
+
+    <div class="key-diff green">
+        <strong>핵심:</strong> 클라이언트가 WebSocket이 아닌 <strong>HTTP POST</strong>로 메시지를 보내고,
+        서버 내부에서 <code>sms.convertAndSend()</code>로 WebSocket 구독자에게 브로드캐스트합니다.
+    </div>
+
+    <div class="code-block">
+        <span class="cc">// ChatController.java — 현재 프로젝트 코드</span><br>
+        <span class="ck">@PostMapping</span>(<span class="cs">"/chat"</span>)<br>
+        <span class="ck">public</span> <span class="cn">String</span> <span class="cm">save</span>(<span class="cn">String</span> <span class="cv">msg</span>) {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cn">Chat</span> <span class="cv">chat</span> = chatService.<span class="cm">save</span>(msg); <span class="cc">// DB 저장</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;sms.<span class="cm">convertAndSend</span>(<span class="cs">"/sub/chat"</span>, chat); <span class="cc">// ← Broker에 전달!</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">return</span> <span class="cs">"redirect:/"</span>;<br>
+        }
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="badge badge-http">HTTP</span> POST → Spring → Simple Broker 흐름</div>
+        <div class="diagram" style="height:390px;">
+            <svg class="conn-line">
+                <!-- HTTP: Client → Spring (별도 요청) -->
+                <line id="p-l1" x1="160" y1="90" x2="440" y2="90"/>
+                <!-- Spring → Service/DB -->
+                <line id="p-l2" x1="500" y1="125" x2="500" y2="195"/>
+                <!-- Spring → Broker (서버 내부) -->
+                <line id="p-l3" x1="580" y1="90" x2="800" y2="185"/>
+
+                <!-- ★ WebSocket 상시 연결선 (Broker ↔ Subscribers) — 항상 보임 -->
+                <line id="p-ws1" class="ws-persistent" x1="730" y1="235" x2="220" y2="330"/>
+                <line id="p-ws2" class="ws-persistent" x1="730" y1="235" x2="520" y2="330"/>
+                <line id="p-ws3" class="ws-persistent" x1="730" y1="235" x2="820" y2="330"/>
+
+                <!-- 데이터 전송선 (애니메이션용, 평소 숨김) -->
+                <line id="p-l4" x1="730" y1="235" x2="220" y2="330"/>
+                <line id="p-l5" x1="730" y1="235" x2="520" y2="330"/>
+                <line id="p-l6" x1="730" y1="235" x2="820" y2="330"/>
+            </svg>
+            <!-- HTTP 단방향 화살표 라벨 -->
+            <div class="http-arrow-label" style="left:195px;top:58px;">
+                HTTP POST → (단방향, 매번 새 연결, 응답 후 끊김)
+            </div>
+            <!-- WS 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:350px;top:275px;">
+                ⇄ Subscriber만 WS 상시 연결 (이미 구독 중)
+            </div>
+            <div class="node node-client" id="p-client" style="left:30px;top:55px;width:140px;">
+                Browser
+                <div class="node-label">form POST /chat</div>
+            </div>
+            <div class="node node-controller" id="p-spring" style="left:400px;top:55px;width:180px;">
+                ChatController
+                <div class="node-label">@PostMapping("/chat")</div>
+            </div>
+            <div class="node node-service" id="p-db" style="left:420px;top:185px;width:160px;">
+                ChatService + DB
+                <div class="node-label">chatService.save(msg)</div>
+            </div>
+            <div class="node node-broker" id="p-broker" style="left:650px;top:165px;width:180px;">
+                Simple Broker
+                <div class="node-label">convertAndSend("/sub/chat")</div>
+            </div>
+            <div class="node node-sub" id="p-sub1" style="left:100px;top:305px;width:140px;">
+                Subscriber A
+                <div class="node-label">/sub/chat 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="p-sub2" style="left:400px;top:305px;width:140px;">
+                Subscriber B
+                <div class="node-label">/sub/chat 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="p-sub3" style="left:700px;top:305px;width:140px;">
+                Subscriber C
+                <div class="node-label">/sub/chat 구독 (WS ⇄)</div>
+            </div>
+        </div>
+
+        <div class="msg-input-row">
+            <input type="text" class="msg-input" id="p-msg" placeholder="POST /chat 으로 보낼 메시지..." value="안녕하세요!">
+            <button class="btn btn-green" id="btn-p-send" onclick="sendPost()">POST /chat 전송</button>
+        </div>
+
+        <div style="margin-top:14px;">
+            <div style="font-size:0.82rem;color:#8892b0;margin-bottom:8px;">WebSocket 구독자 수신 현황:</div>
+            <div class="subscriber-list">
+                <div class="subscriber-box" id="p-box-a"><div class="sub-name">Subscriber A</div><div class="sub-topic">/sub/chat</div><div class="sub-msgs" id="p-msgs-a"></div></div>
+                <div class="subscriber-box" id="p-box-b"><div class="sub-name">Subscriber B</div><div class="sub-topic">/sub/chat</div><div class="sub-msgs" id="p-msgs-b"></div></div>
+                <div class="subscriber-box" id="p-box-c"><div class="sub-name">Subscriber C</div><div class="sub-topic">/sub/chat</div><div class="sub-msgs" id="p-msgs-c"></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="log-area" id="post-log"></div>
+</div>
+
+<!-- ================================================================ -->
+<!-- TAB 3: Client → /sub 직접 → SimpleBroker                        -->
+<!-- ================================================================ -->
+<div id="sec-direct" class="section">
+    <h2 class="section-title">3. STOMP 직접 → Simple Broker (Controller 스킵)</h2>
+    <p class="section-desc">
+        클라이언트가 <strong>STOMP로 /sub 프리픽스 목적지에 직접 메시지</strong>를 보내면,<br>
+        Simple Broker가 prefix 매칭하여 <strong>Controller를 거치지 않고</strong> 바로 구독자에게 릴레이합니다.<br>
+        DB 저장, 검증 등 비즈니스 로직 없이 순수하게 메시지만 중계합니다.
+    </p>
+
+    <!-- WebSocket 전이중 연결 배너 -->
+    <div class="conn-banner ws-type">
+        <div class="conn-icon">⇄</div>
+        <div class="conn-text">
+            <strong style="color:#00d4ff;">WebSocket 전이중 연결 (Full-Duplex, 지속 연결)</strong>
+            <div class="conn-detail">
+                1번 탭에서 수립된 <strong>WebSocket 연결이 이미 열려 있는 상태</strong>입니다.<br>
+                같은 TCP 소켓 위에서 <strong>클라이언트 ↔ 서버 양방향</strong> 동시 통신 가능.<br>
+                HTTP처럼 매번 연결을 맺지 않고, <strong>이미 열린 터널</strong>을 통해 STOMP 프레임을 보냅니다.
+            </div>
+        </div>
+    </div>
+
+    <div class="key-diff pink">
+        <strong>핵심:</strong> 목적지가 <code>/sub</code>로 시작 → Simple Broker가 직접 처리 → <strong>@MessageMapping 안 탐!</strong><br>
+        비즈니스 로직 불가, 단순 릴레이만 가능합니다.
+    </div>
+
+    <div class="code-block">
+        <span class="cc">// JavaScript 클라이언트 코드 (WebSocket 전이중 연결 위에서 실행)</span><br>
+        stompClient.<span class="cm">send</span>(<span class="cs">"/sub/chat"</span>, {}, <span class="cs">"hello"</span>);<br>
+        <span class="cc">// → 이미 열려있는 WebSocket 터널을 통해 STOMP 프레임 전송</span><br>
+        <span class="cc">// → /sub 프리픽스 → Simple Broker가 바로 구독자에게 전달</span><br>
+        <span class="cc">// → Spring Controller(@MessageMapping) 거치지 않음!</span>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="badge badge-stomp">STOMP</span> 직접 Simple Broker 전송 (Controller 스킵)</div>
+        <div class="diagram" style="height:360px;">
+            <svg class="conn-line">
+                <!-- ★ WebSocket 상시 연결선 (Publisher ↔ Broker) -->
+                <line id="d-ws0" class="ws-persistent" x1="160" y1="90" x2="480" y2="185"/>
+                <!-- ★ WebSocket 상시 연결선 (Broker ↔ Subscribers) -->
+                <line id="d-ws1" class="ws-persistent" x1="480" y1="185" x2="220" y2="295"/>
+                <line id="d-ws2" class="ws-persistent" x1="480" y1="185" x2="520" y2="295"/>
+                <line id="d-ws3" class="ws-persistent" x1="480" y1="185" x2="820" y2="295"/>
+
+                <!-- 데이터 전송선 (애니메이션용) -->
+                <line id="d-l1" x1="160" y1="90" x2="480" y2="185"/>
+                <line id="d-l3" x1="480" y1="185" x2="220" y2="295"/>
+                <line id="d-l4" x1="480" y1="185" x2="520" y2="295"/>
+                <line id="d-l5" x1="480" y1="185" x2="820" y2="295"/>
+            </svg>
+            <!-- WebSocket 터널 시각화 -->
+            <div class="ws-tunnel" style="left:15px;top:18px;right:15px;height:70px;">
+                <div class="ws-tunnel-bg"></div>
+                <div class="ws-tunnel-label">WebSocket 전이중 터널 (이미 연결된 상태)</div>
+                <div class="ws-tunnel-arrows">◀ STOMP Frame ▶ 양방향 통신</div>
+            </div>
+            <!-- Publisher ↔ Broker 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:170px;top:115px;">
+                ⇄ Publisher도 WS 상시 연결
+            </div>
+            <!-- Broker ↔ Subscribers 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:350px;top:235px;">
+                ⇄ Subscriber도 WS 상시 연결 (이미 구독 중)
+            </div>
+            <div class="node node-client" id="d-publisher" style="left:30px;top:50px;width:150px;">
+                Publisher Client
+                <div class="node-label">stompClient.send("/sub/chat")</div>
+            </div>
+            <div class="node node-skip" id="d-skip" style="left:600px;top:50px;width:170px;">
+                Controller (SKIP)
+                <div class="node-label" style="color:#334155;">@MessageMapping 안 탐!</div>
+            </div>
+            <div class="node node-broker" id="d-broker" style="left:380px;top:150px;width:180px;">
+                Simple Broker
+                <div class="node-label">enableSimpleBroker("/sub")</div>
+            </div>
+            <div class="node node-sub" id="d-sub1" style="left:100px;top:268px;width:140px;">
+                Subscriber A
+                <div class="node-label">/sub/chat 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="d-sub2" style="left:400px;top:268px;width:140px;">
+                Subscriber B
+                <div class="node-label">/sub/chat 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="d-sub3" style="left:700px;top:268px;width:140px;">
+                Subscriber C
+                <div class="node-label">/sub/notification 구독 (WS ⇄)</div>
+            </div>
+        </div>
+
+        <div class="msg-input-row">
+            <select id="d-topic" class="msg-input" style="flex:0.5;">
+                <option value="/sub/chat">/sub/chat</option>
+                <option value="/sub/notification">/sub/notification</option>
+            </select>
+            <input type="text" class="msg-input" id="d-msg" placeholder="직접 보낼 메시지..." value="컨트롤러 안 거침!">
+            <button class="btn btn-pink" onclick="sendDirect()">STOMP 직접 전송</button>
+        </div>
+
+        <div style="margin-top:14px;">
+            <div style="font-size:0.82rem;color:#8892b0;margin-bottom:8px;">구독자 수신 현황:</div>
+            <div class="subscriber-list">
+                <div class="subscriber-box" id="d-box-a"><div class="sub-name">Subscriber A</div><div class="sub-topic">/sub/chat</div><div class="sub-msgs" id="d-msgs-a"></div></div>
+                <div class="subscriber-box" id="d-box-b"><div class="sub-name">Subscriber B</div><div class="sub-topic">/sub/chat</div><div class="sub-msgs" id="d-msgs-b"></div></div>
+                <div class="subscriber-box" id="d-box-c"><div class="sub-name">Subscriber C</div><div class="sub-topic">/sub/notification</div><div class="sub-msgs" id="d-msgs-c"></div></div>
+            </div>
+        </div>
+    </div>
+    <div class="log-area" id="direct-log"></div>
+</div>
+
+<!-- ================================================================ -->
+<!-- TAB 4: /pub → @MessageMapping + @SendTo → Broker                -->
+<!-- ================================================================ -->
+<div id="sec-sendto" class="section">
+    <h2 class="section-title">4. /pub → @MessageMapping + @SendTo → Simple Broker</h2>
+    <p class="section-desc">
+        클라이언트가 <code>/pub/room</code>으로 STOMP 메시지를 보내면,<br>
+        <code>setApplicationDestinationPrefixes("/pub")</code> 설정에 의해 prefix <code>/pub</code>이 제거되고
+        <code>@MessageMapping("/room")</code>이 매칭됩니다.<br>
+        <strong>@SendTo("/sub")</strong>로 리턴값이 Simple Broker에 전달됩니다.
+    </p>
+
+    <!-- WebSocket 전이중 연결 배너 -->
+    <div class="conn-banner ws-type">
+        <div class="conn-icon">⇄</div>
+        <div class="conn-text">
+            <strong style="color:#00d4ff;">WebSocket 전이중 연결 (Full-Duplex, 지속 연결)</strong>
+            <div class="conn-detail">
+                1번 탭에서 수립된 <strong>WebSocket 연결이 이미 열려 있는 상태</strong>입니다.<br>
+                <code>stompClient.send("/pub/room")</code>는 이미 열린 WebSocket 터널을 통해 STOMP 프레임으로 전송됩니다.<br>
+                HTTP POST와 달리 <strong>새로운 연결을 맺지 않습니다</strong>.
+            </div>
+        </div>
+    </div>
+
+    <div class="key-diff orange">
+        <strong>핵심:</strong> <code>/pub/room</code> → prefix 제거 → <code>@MessageMapping("/room")</code> → return 값이 <code>@SendTo("/sub")</code>로 전달<br>
+        <strong>SimpleAnnotationMethodMessageHandler</strong>가 @MessageMapping을 찾아 메서드를 호출합니다.
+    </div>
+
+    <div class="code-block">
+        <span class="cc">// JavaScript (이미 연결된 WebSocket 위에서 STOMP 프레임 전송)</span><br>
+        stompClient.<span class="cm">send</span>(<span class="cs">"/pub/room"</span>, {}, <span class="cs">"1"</span>);<br>
+        <span class="cc">// → WebSocket 전이중 터널을 통해 STOMP SEND 프레임 전송</span><br><br>
+        <span class="cc">// Spring Server</span><br>
+        <span class="ck">@SendTo</span>(<span class="cs">"/sub"</span>)<br>
+        <span class="ck">@MessageMapping</span>(<span class="cs">"/room"</span>)<br>
+        <span class="ck">public</span> <span class="cn">String</span> <span class="cm">pubTest2</span>(<span class="cn">String</span> <span class="cv">number</span>) {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;System.out.<span class="cm">println</span>(<span class="cs">"나 요청돼? : "</span> + number);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">return</span> <span class="cs">"hello world"</span>; <span class="cc">// ← 이 리턴값이 @SendTo("/sub")로 전달!</span><br>
+        }
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="badge badge-stomp">STOMP</span> @MessageMapping + @SendTo 흐름</div>
+        <div class="diagram" style="height:490px;">
+            <svg class="conn-line">
+                <!-- ★ WebSocket 상시 연결선 (Publisher ↔ SAM) -->
+                <line id="s-ws0" class="ws-persistent" x1="170" y1="225" x2="225" y2="175"/>
+                <!-- ★ WebSocket 상시 연결선 (Broker ↔ Subscribers) -->
+                <line id="s-ws1" class="ws-persistent" x1="385" y1="355" x2="170" y2="425"/>
+                <line id="s-ws2" class="ws-persistent" x1="385" y1="355" x2="470" y2="425"/>
+                <line id="s-ws3" class="ws-persistent" x1="385" y1="355" x2="770" y2="425"/>
+
+                <!-- 데이터 전송선 (애니메이션용) -->
+                <line id="s-l1" x1="170" y1="225" x2="225" y2="175"/>
+                <line id="s-l2" x1="545" y1="180" x2="620" y2="235"/>
+                <line id="s-l3" x1="620" y1="260" x2="545" y2="315"/>
+                <line id="s-l4" x1="385" y1="355" x2="170" y2="425"/>
+                <line id="s-l5" x1="385" y1="355" x2="470" y2="425"/>
+                <line id="s-l6" x1="385" y1="355" x2="770" y2="425"/>
+            </svg>
+            <!-- WebSocket 터널 시각화 -->
+            <div class="ws-tunnel" style="left:15px;top:18px;right:15px;height:80px;">
+                <div class="ws-tunnel-bg"></div>
+                <div class="ws-tunnel-label">WebSocket 전이중 터널 (이미 연결된 상태)</div>
+                <div class="ws-tunnel-arrows">◀ STOMP Frame ▶ 양방향 통신</div>
+            </div>
+
+            <!-- ★ WebSocket Server 컨테이너 (SAM + Broker) -->
+            <div class="ws-server-container" style="left:205px;top:115px;width:360px;height:260px;">
+                <div class="ws-server-label">🌐 WebSocket Server</div>
+                <div class="ws-server-sublabel">@EnableWebSocketMessageBroker</div>
+            </div>
+
+            <!-- ★ Spring Server 컨테이너 (Controller - 사용자 비즈니스 로직) -->
+            <div class="ws-server-container" style="left:595px;top:115px;width:340px;height:260px;border-color:rgba(245,158,11,0.45);background:linear-gradient(135deg,rgba(245,158,11,0.04) 0%,rgba(245,158,11,0.02) 100%);">
+                <div class="ws-server-label" style="color:#f59e0b;border-color:rgba(245,158,11,0.55);">☕ Spring Server (User Code)</div>
+                <div class="ws-server-sublabel" style="color:rgba(245,158,11,0.7);border-color:rgba(245,158,11,0.3);">Controller Layer</div>
+            </div>
+
+            <!-- Publisher ↔ SAM 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:40px;top:275px;">
+                ⇄ Publisher ↔ SAM (WS 전이중 상시 연결)
+            </div>
+            <!-- Broker ↔ Subscribers 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:380px;top:380px;">
+                ⇄ Subscriber도 WS 상시 연결 (이미 구독 중)
+            </div>
+
+            <div class="node node-client" id="s-publisher" style="left:30px;top:195px;width:140px;">
+                Publisher Client
+                <div class="node-label">stompClient.send("/pub/room")</div>
+            </div>
+            <div class="node" id="s-sam" style="left:225px;top:150px;width:320px;background:#2a1a10;border:2px solid #f59e0b;color:#f59e0b;font-size:0.72rem;">
+                SimpleAnnotationMethod MessageHandler
+                <div class="node-label">prefix /pub 제거 → /room 매칭</div>
+            </div>
+            <div class="node node-broker" id="s-broker" style="left:225px;top:295px;width:320px;">
+                Simple Broker
+                <div class="node-label">@SendTo("/sub") → 전체 브로드캐스트</div>
+            </div>
+            <div class="node node-controller" id="s-controller" style="left:625px;top:220px;width:280px;">
+                Controller
+                <div class="node-label">@MessageMapping("/room")<br>@SendTo("/sub")</div>
+            </div>
+            <div class="node node-sub" id="s-sub1" style="left:100px;top:405px;width:140px;">
+                Subscriber A
+                <div class="node-label">/sub 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="s-sub2" style="left:400px;top:405px;width:140px;">
+                Subscriber B
+                <div class="node-label">/sub 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="s-sub3" style="left:700px;top:405px;width:140px;">
+                Subscriber C
+                <div class="node-label">/sub 구독 (WS ⇄)</div>
+            </div>
+        </div>
+
+        <div class="msg-input-row">
+            <input type="text" class="msg-input" id="s-msg" placeholder="stompClient.send('/pub/room', {}, '...')" value="1">
+            <button class="btn btn-orange" onclick="sendSendTo()">stompClient.send("/pub/room")</button>
+        </div>
+
+        <div style="margin-top:14px;">
+            <div style="font-size:0.82rem;color:#8892b0;margin-bottom:8px;">구독자 수신 현황 (<strong>@SendTo("/sub") → 모든 구독자에게 동일하게 전달</strong>):</div>
+            <div class="subscriber-list">
+                <div class="subscriber-box" id="s-box-a"><div class="sub-name">Subscriber A</div><div class="sub-topic">/sub</div><div class="sub-msgs" id="s-msgs-a"></div></div>
+                <div class="subscriber-box" id="s-box-b"><div class="sub-name">Subscriber B</div><div class="sub-topic">/sub</div><div class="sub-msgs" id="s-msgs-b"></div></div>
+                <div class="subscriber-box" id="s-box-c"><div class="sub-name">Subscriber C</div><div class="sub-topic">/sub</div><div class="sub-msgs" id="s-msgs-c"></div></div>
+            </div>
+        </div>
+
+        <div class="key-diff orange" style="margin-top:14px;">
+            <strong>한계:</strong> @SendTo("/sub")는 <strong>고정된 하나의 목적지</strong>에만 보냅니다.<br>
+            → 구독자를 세분화(채팅방 분리 등)할 수 없음! → 5번 패턴이 필요한 이유
+        </div>
+    </div>
+    <div class="log-area" id="sendto-log"></div>
+</div>
+
+<!-- ================================================================ -->
+<!-- TAB 5: /pub → @MessageMapping → convertAndSend("/sub/"+n) ★     -->
+<!-- ================================================================ -->
+<div id="sec-final" class="section">
+    <h2 class="section-title">5. /pub → @MessageMapping → convertAndSend("/sub/"+number) ★ 최종</h2>
+    <p class="section-desc">
+        <strong>최종 구조!</strong> 클라이언트가 <code>/pub/room</code>으로 보내면 Controller에서
+        <code>sms.convertAndSend("/sub/" + number)</code>로 <strong>동적 목적지</strong>에 전달합니다.<br>
+        이 구조로 <strong>구독자를 세분화</strong>할 수 있습니다. (채팅방 1, 채팅방 2 등)
+    </p>
+
+    <!-- WebSocket 전이중 연결 배너 -->
+    <div class="conn-banner ws-type">
+        <div class="conn-icon">⇄</div>
+        <div class="conn-text">
+            <strong style="color:#00d4ff;">WebSocket 전이중 연결 (Full-Duplex, 지속 연결)</strong>
+            <div class="conn-detail">
+                1번 탭에서 수립된 <strong>WebSocket 연결이 이미 열려 있는 상태</strong>입니다.<br>
+                <code>stompClient.send("/pub/room")</code>는 이미 열린 WebSocket 터널을 통해 STOMP 프레임으로 전송됩니다.<br>
+                동적으로 <code>"/sub/" + number</code> 목적지를 결정하여 <strong>구독자를 세분화</strong>할 수 있는 최종 구조입니다.
+            </div>
+        </div>
+    </div>
+
+    <div class="key-diff cyan">
+        <strong>핵심 (최종 구조):</strong> Controller에서 <code>convertAndSend("/sub/" + number)</code>로
+        <strong>동적으로 목적지를 결정</strong>합니다.<br>
+        → <code>/sub/1</code> 구독자에게만, <code>/sub/2</code> 구독자에게만 선택적 전달 가능!
+    </div>
+
+    <div class="code-block">
+        <span class="cc">// JavaScript (이미 연결된 WebSocket 위에서 STOMP 프레임 전송)</span><br>
+        stompClient.<span class="cm">send</span>(<span class="cs">"/pub/room"</span>, {}, <span class="cs">"1"</span>);<br>
+        <span class="cc">// → WebSocket 전이중 터널을 통해 STOMP SEND 프레임 전송</span><br><br>
+        <span class="cc">// Spring Server — /pub/room 으로 요청이 들어오면</span><br>
+        <span class="ck">@MessageMapping</span>(<span class="cs">"/room"</span>)<br>
+        <span class="ck">public void</span> <span class="cm">pubTest1</span>(<span class="cn">String</span> <span class="cv">number</span>) {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;System.out.<span class="cm">println</span>(<span class="cs">"나 요청돼? : "</span> + number);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;sms.<span class="cm">convertAndSend</span>(<span class="cs">"/sub/"</span> + number, <span class="cs">"hello world "</span> + number);<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cc">// ← number가 "1"이면 /sub/1 구독자에게만 전달!</span><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="cc">// ← number가 "2"이면 /sub/2 구독자에게만 전달!</span><br>
+        }
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="badge badge-ws">FINAL</span> convertAndSend 동적 라우팅 — 구독자 세분화</div>
+        <div class="diagram" style="height:490px;">
+            <svg class="conn-line">
+                <!-- ★ WebSocket 상시 연결선 (Publisher ↔ SAM) -->
+                <line id="f-ws0" class="ws-persistent" x1="170" y1="225" x2="225" y2="175"/>
+                <!-- ★ WebSocket 상시 연결선 (Broker ↔ Subscribers) -->
+                <line id="f-ws1" class="ws-persistent" x1="385" y1="355" x2="115" y2="425"/>
+                <line id="f-ws2" class="ws-persistent" x1="385" y1="355" x2="345" y2="425"/>
+                <line id="f-ws3" class="ws-persistent" x1="385" y1="355" x2="575" y2="425"/>
+                <line id="f-ws4" class="ws-persistent" x1="385" y1="355" x2="805" y2="425"/>
+
+                <!-- 데이터 전송선 (애니메이션용) -->
+                <line id="f-l1" x1="170" y1="225" x2="225" y2="175"/>
+                <line id="f-l2" x1="545" y1="180" x2="620" y2="235"/>
+                <line id="f-l3" x1="620" y1="260" x2="545" y2="315"/>
+                <line id="f-l4" x1="385" y1="355" x2="115" y2="425"/>
+                <line id="f-l5" x1="385" y1="355" x2="345" y2="425"/>
+                <line id="f-l6" x1="385" y1="355" x2="575" y2="425"/>
+                <line id="f-l7" x1="385" y1="355" x2="805" y2="425"/>
+            </svg>
+            <!-- WebSocket 터널 시각화 -->
+            <div class="ws-tunnel" style="left:15px;top:18px;right:15px;height:80px;">
+                <div class="ws-tunnel-bg"></div>
+                <div class="ws-tunnel-label">WebSocket 전이중 터널 (이미 연결된 상태)</div>
+                <div class="ws-tunnel-arrows">◀ STOMP Frame ▶ 양방향 통신</div>
+            </div>
+
+            <!-- ★ WebSocket Server 컨테이너 (SAM + Broker) -->
+            <div class="ws-server-container" style="left:205px;top:115px;width:360px;height:260px;">
+                <div class="ws-server-label">🌐 WebSocket Server</div>
+                <div class="ws-server-sublabel">@EnableWebSocketMessageBroker</div>
+            </div>
+
+            <!-- ★ Spring Server 컨테이너 (Controller - 사용자 비즈니스 로직) -->
+            <div class="ws-server-container" style="left:595px;top:115px;width:340px;height:260px;border-color:rgba(245,158,11,0.45);background:linear-gradient(135deg,rgba(245,158,11,0.04) 0%,rgba(245,158,11,0.02) 100%);">
+                <div class="ws-server-label" style="color:#f59e0b;border-color:rgba(245,158,11,0.55);">☕ Spring Server (User Code)</div>
+                <div class="ws-server-sublabel" style="color:rgba(245,158,11,0.7);border-color:rgba(245,158,11,0.3);">Controller Layer</div>
+            </div>
+
+            <!-- Publisher ↔ SAM 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:40px;top:275px;">
+                ⇄ Publisher ↔ SAM (WS 전이중 상시 연결)
+            </div>
+            <!-- Broker ↔ Subscribers 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:380px;top:380px;">
+                ⇄ Subscriber도 WS 상시 연결 (이미 구독 중)
+            </div>
+
+            <div class="node node-client" id="f-publisher" style="left:30px;top:195px;width:140px;">
+                Publisher Client
+                <div class="node-label">stompClient.send("/pub/room")</div>
+            </div>
+            <div class="node" id="f-sam" style="left:225px;top:150px;width:320px;background:#2a1a10;border:2px solid #f59e0b;color:#f59e0b;font-size:0.72rem;">
+                SimpleAnnotationMethod MessageHandler
+                <div class="node-label">prefix /pub 제거 → /room 매칭</div>
+            </div>
+            <div class="node node-broker" id="f-broker" style="left:225px;top:295px;width:320px;">
+                Simple Broker
+                <div class="node-label">convertAndSend("/sub/"+number)</div>
+            </div>
+            <div class="node node-controller" id="f-controller" style="left:625px;top:220px;width:280px;">
+                Controller
+                <div class="node-label">@MessageMapping("/room")</div>
+            </div>
+            <div class="node node-sub" id="f-sub1" style="left:50px;top:405px;width:130px;">
+                Subscriber A
+                <div class="node-label">/sub/1 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="f-sub2" style="left:280px;top:405px;width:130px;">
+                Subscriber B
+                <div class="node-label">/sub/1 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="f-sub3" style="left:510px;top:405px;width:130px;">
+                Subscriber C
+                <div class="node-label">/sub/2 구독 (WS ⇄)</div>
+            </div>
+            <div class="node node-sub" id="f-sub4" style="left:740px;top:405px;width:130px;">
+                Subscriber D
+                <div class="node-label">/sub/2 구독 (WS ⇄)</div>
+            </div>
+        </div>
+
+        <div class="status-bar" style="margin-top:10px;">
+            <div class="status-dot ws"></div>
+            <span>number 값에 따라 <strong>다른 구독자 그룹</strong>에게 메시지가 전달됩니다</span>
+        </div>
+
+        <div class="msg-input-row">
+            <select id="f-number" class="msg-input" style="flex:0.3;">
+                <option value="1">number = "1" (방 1)</option>
+                <option value="2">number = "2" (방 2)</option>
+            </select>
+            <button class="btn btn-cyan" onclick="sendFinal()">stompClient.send("/pub/room", {}, number)</button>
+        </div>
+
+        <div style="margin-top:14px;">
+            <div style="font-size:0.82rem;color:#8892b0;margin-bottom:8px;">구독자 수신 현황 (<strong>number에 따라 해당 방 구독자에게만 전달!</strong>):</div>
+            <div class="subscriber-list">
+                <div class="subscriber-box" id="f-box-a" style="border-color:#22d3ee50;"><div class="sub-name">Subscriber A</div><div class="sub-topic">/sub/1 (방 1)</div><div class="sub-msgs" id="f-msgs-a"></div></div>
+                <div class="subscriber-box" id="f-box-b" style="border-color:#22d3ee50;"><div class="sub-name">Subscriber B</div><div class="sub-topic">/sub/1 (방 1)</div><div class="sub-msgs" id="f-msgs-b"></div></div>
+                <div class="subscriber-box" id="f-box-c" style="border-color:#c084fc50;"><div class="sub-name">Subscriber C</div><div class="sub-topic">/sub/2 (방 2)</div><div class="sub-msgs" id="f-msgs-c"></div></div>
+                <div class="subscriber-box" id="f-box-d" style="border-color:#c084fc50;"><div class="sub-name">Subscriber D</div><div class="sub-topic">/sub/2 (방 2)</div><div class="sub-msgs" id="f-msgs-d"></div></div>
+            </div>
+        </div>
+
+        <div class="key-diff cyan" style="margin-top:16px;">
+            <strong>왜 이게 최종 구조인가?</strong><br>
+            • 4번(@SendTo)은 고정 목적지 → 모든 구독자에게 동일 메시지<br>
+            • 5번(convertAndSend)은 동적 목적지 → <strong>/sub/1, /sub/2 등 구독자 그룹을 분리</strong> 가능<br>
+            • 채팅방, 게임 방, 알림 채널 등 <strong>구독자 세분화</strong>가 필요한 모든 실시간 서비스에 필수!
+        </div>
+    </div>
+    <div class="log-area" id="final-log"></div>
+</div>
+
+<!-- ================================================================ -->
+<!-- TAB 6: Firebase Cloud Messaging (FCM) — 푸시 알림                 -->
+<!-- ================================================================ -->
+<div id="sec-fcm" class="section">
+    <h2 class="section-title">6. Firebase Cloud Messaging (FCM) — 모바일 푸시 알림 🔔</h2>
+    <p class="section-desc">
+        앱이 꺼져있어도 휴대폰에 알림을 전달하려면 <strong>Firebase Cloud Messaging(FCM)</strong>을 사용합니다.<br>
+        알림을 <strong>보내는 쪽은 HTTP POST 단방향</strong>, 알림을 <strong>받는 휴대폰은 FCM과 상시 연결</strong>된 구조입니다.<br>
+        보내는 사람은 응답이 필요 없고 단발성이므로 전이중 연결이 필요 없습니다.
+    </p>
+
+    <!-- 비교 배너: HTTP(보내는 쪽) vs WS(받는 쪽) -->
+    <div class="conn-banner http-type">
+        <div class="conn-icon">→</div>
+        <div class="conn-text">
+            <strong style="color:#4ade80;">발신: HTTP POST (단방향, 비연결)</strong>
+            <div class="conn-detail">
+                Admin/Backend 서버가 <code>POST https://fcm.googleapis.com/v1/.../messages:send</code>로 알림 요청.<br>
+                <strong>단발성 요청</strong>이라 상시 연결이 필요 없음 → HTTP가 적합.
+            </div>
+        </div>
+    </div>
+    <div class="conn-banner ws-type">
+        <div class="conn-icon">⇄</div>
+        <div class="conn-text">
+            <strong style="color:#00d4ff;">수신: 휴대폰 ↔ FCM 상시 연결 (Persistent)</strong>
+            <div class="conn-detail">
+                휴대폰은 부팅 시 FCM 서버와 <strong>상시 연결</strong>을 유지합니다 (XMPP/HTTP2 기반).<br>
+                서버가 먼저 Push를 보내야 하므로 <strong>양방향/상시 연결</strong>이 필수.
+            </div>
+        </div>
+    </div>
+
+    <div class="key-diff pink">
+        <strong>핵심 비교:</strong> 4·5번 탭의 WebSocket 구조와 비슷하지만, <strong>Publisher(발신자)가 HTTP POST로 전환</strong>된 구조입니다.<br>
+        → 1:N Push를 보낼 때 <strong>보내는 사람까지 상시 연결을 유지할 필요는 없다</strong>는 것이 포인트!
+    </div>
+
+    <div class="code-block">
+        <span class="cc">// ① 발신: Backend 서버 (Java / Node 등) — HTTP POST 한 번</span><br>
+        <span class="ck">POST</span> <span class="cs">https://fcm.googleapis.com/v1/projects/{PID}/messages:send</span><br>
+        <span class="ck">Authorization:</span> <span class="cs">Bearer {ACCESS_TOKEN}</span><br>
+        <br>
+        { <span class="ck">"message"</span>: {<br>
+        &nbsp;&nbsp;<span class="ck">"token"</span>: <span class="cs">"device_registration_token"</span>,<br>
+        &nbsp;&nbsp;<span class="ck">"notification"</span>: {<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"title"</span>: <span class="cs">"새 메시지"</span>,<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="ck">"body"</span>: <span class="cs">"안녕하세요!"</span><br>
+        &nbsp;&nbsp;}<br>
+        } }<br>
+        <br>
+        <span class="cc">// ② 수신: 휴대폰 FCM SDK — 상시 연결된 채널로 알림 자동 수신</span><br>
+        <span class="cc">// Android: onMessageReceived() / iOS: didReceiveRemoteNotification()</span>
+    </div>
+
+    <div class="card">
+        <div class="card-title"><span class="badge badge-http">HTTP</span> + <span class="badge badge-ws">상시 WS-like</span> FCM 푸시 알림 아키텍처</div>
+        <div class="diagram" style="height:430px;">
+            <svg class="conn-line">
+                <!-- HTTP: Admin Backend → FCM Server (단발성) -->
+                <line id="fc-l1" x1="200" y1="100" x2="440" y2="200"/>
+
+                <!-- ★ 휴대폰 ↔ FCM 상시 연결선 (always visible) -->
+                <line id="fc-ws1" class="ws-persistent" x1="560" y1="240" x2="170" y2="360"/>
+                <line id="fc-ws2" class="ws-persistent" x1="560" y1="240" x2="460" y2="360"/>
+                <line id="fc-ws3" class="ws-persistent" x1="560" y1="240" x2="750" y2="360"/>
+
+                <!-- 데이터 전송선 (애니메이션용) -->
+                <line id="fc-l2" x1="560" y1="240" x2="170" y2="360"/>
+                <line id="fc-l3" x1="560" y1="240" x2="460" y2="360"/>
+                <line id="fc-l4" x1="560" y1="240" x2="750" y2="360"/>
+            </svg>
+
+            <!-- HTTP 단방향 화살표 라벨 -->
+            <div class="http-arrow-label" style="left:215px;top:130px;">
+                HTTP POST → (단방향, 단발성 요청)
+            </div>
+            <!-- 상시 연결 라벨 -->
+            <div class="ws-conn-label" style="left:290px;top:295px;">
+                ⇄ 휴대폰 ↔ FCM 상시 연결 (XMPP/HTTP2)
+            </div>
+
+            <!-- FCM Cloud 컨테이너 (Google 인프라) -->
+            <div class="ws-server-container" style="left:380px;top:155px;width:380px;height:120px;border-color:rgba(255,107,157,0.45);background:linear-gradient(135deg,rgba(255,107,157,0.05) 0%,rgba(0,212,255,0.03) 100%);">
+                <div class="ws-server-label" style="color:#ff6b9d;border-color:rgba(255,107,157,0.55);">☁️ Google FCM 인프라</div>
+                <div class="ws-server-sublabel" style="color:rgba(255,107,157,0.7);border-color:rgba(255,107,157,0.3);">Firebase Cloud Messaging</div>
+            </div>
+
+            <!-- Admin Backend (발신자) -->
+            <div class="node node-admin" id="fc-admin" style="left:40px;top:70px;width:170px;">
+                Admin / Backend
+                <div class="node-label">POST fcm.../messages:send</div>
+            </div>
+
+            <!-- FCM Server -->
+            <div class="node node-fcm" id="fc-server" style="left:430px;top:180px;width:280px;">
+                FCM Server
+                <div class="node-label">device_token → 대상 기기 Push</div>
+            </div>
+
+            <!-- 휴대폰들 (수신자) -->
+            <div class="mobile-phone" id="fc-phone1" style="left:95px;top:320px;width:140px;">
+                📱 휴대폰 A
+                <div class="node-label" style="color:#6ee7a0;">user_token_A</div>
+                <div class="phone-screen" id="fc-screen1">
+                    <div style="opacity:0.5;">알림 대기 중...</div>
+                </div>
+            </div>
+            <div class="mobile-phone" id="fc-phone2" style="left:390px;top:320px;width:140px;">
+                📱 휴대폰 B
+                <div class="node-label" style="color:#6ee7a0;">user_token_B</div>
+                <div class="phone-screen" id="fc-screen2">
+                    <div style="opacity:0.5;">알림 대기 중...</div>
+                </div>
+            </div>
+            <div class="mobile-phone" id="fc-phone3" style="left:680px;top:320px;width:140px;">
+                📱 휴대폰 C
+                <div class="node-label" style="color:#6ee7a0;">user_token_C</div>
+                <div class="phone-screen" id="fc-screen3">
+                    <div style="opacity:0.5;">알림 대기 중...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="msg-input-row">
+            <select id="fc-target" class="msg-input" style="flex:0.4;">
+                <option value="all">전체 Broadcast (A, B, C)</option>
+                <option value="a">휴대폰 A 에게만</option>
+                <option value="b">휴대폰 B 에게만</option>
+                <option value="c">휴대폰 C 에게만</option>
+            </select>
+            <input type="text" class="msg-input" id="fc-msg" placeholder="알림 내용..." value="새 메시지가 도착했어요!">
+            <button class="btn btn-pink" onclick="sendFcm()">POST /messages:send</button>
+        </div>
+
+        <div class="key-diff pink" style="margin-top:16px;">
+            <strong>왜 Publisher 쪽은 HTTP여도 될까?</strong><br>
+            • 발신자는 <strong>한 번 알림 요청만 하면 끝</strong> → 서버의 응답을 기다릴 필요도 없음<br>
+            • 수신자(휴대폰)는 <strong>언제 알림이 올지 모름</strong> → 서버가 먼저 밀어 넣으려면 상시 연결 필요<br>
+            • FCM이 <strong>디바이스 토큰별 연결 풀</strong>을 내부적으로 유지해 대신 Push
+        </div>
+
+        <div class="key-diff cyan" style="margin-top:10px;">
+            <strong>WebSocket STOMP vs FCM 비교:</strong><br>
+            • <strong>WebSocket (4·5번 탭)</strong>: 브라우저가 열려있는 동안만 실시간 통신 가능<br>
+            • <strong>FCM (6번 탭)</strong>: 앱이 꺼져있어도 OS 수준에서 알림 수신 가능<br>
+            • 공통점: <strong>수신자는 상시 연결</strong>이 필요하다는 것 (연결 주체만 다름)
+        </div>
+    </div>
+    <div class="log-area" id="fcm-log"></div>
+</div>
+
+<!-- ================================================================ -->
+<script>
+// ====== UTILS ======
+function ts() {
+    const d = new Date();
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}.${String(d.getMilliseconds()).padStart(3,'0')}`;
+}
+function addLog(id, html) {
+    const el = document.getElementById(id);
+    const div = document.createElement('div');
+    div.className = 'log-line';
+    div.innerHTML = `<span class="log-time">[${ts()}]</span> ${html}`;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+}
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+function flash(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('glow');
+    setTimeout(() => el.classList.remove('glow'), 900);
+}
+function flashBox(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1000);
+}
+function setL(id, cls) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.className.baseVal !== undefined
+        ? el.setAttribute('class', cls || '')
+        : (el.className = cls || '');
+}
+function clearLines(ids) { ids.forEach(id => setL(id, '')); }
+function appendMsg(id, text, seq) {
+    const el = document.getElementById(id);
+    const div = document.createElement('div');
+    div.textContent = `#${seq}: ${text}`;
+    el.prepend(div);
+}
+function addHL(targetId, html) {
+    const el = document.getElementById(targetId);
+    const div = document.createElement('div');
+    div.className = 'h-line';
+    div.innerHTML = html || '&nbsp;';
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+}
+function setStep(containerId, idx) {
+    document.querySelectorAll(`#${containerId} .step-chip`).forEach((c, i) => {
+        c.className = i < idx ? 'step-chip done' : i === idx ? 'step-chip current' : 'step-chip';
+    });
+}
+
+// ====== TAB SWITCH ======
+document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('sec-' + btn.dataset.tab).classList.add('active');
+        btn.classList.add('active');
+    });
+});
+
+// ====================================================================
+// TAB 1: HTTP → WebSocket Upgrade
+// ====================================================================
+let upStep = -1;
+const upSteps = [
+    async () => {
+        setStep('upgrade-steps', 0);
+        setL('up-line', 'l-active-http');
+        document.getElementById('up-dot').className = 'status-dot http';
+        document.getElementById('up-status').textContent = 'TCP 3-way Handshake (SYN → SYN-ACK → ACK)';
+        addLog('upgrade-log', '<span class="log-http">▶ TCP</span> 3-way handshake: SYN → SYN-ACK → ACK');
+        addLog('upgrade-log', '<span class="log-http">▶ TCP</span> 연결 수립 완료');
+        addHL('upgrade-headers', '<span class="h-comment">// TCP 연결 수립 완료. HTTP 요청을 보냅니다.</span>');
+    },
+    async () => {
+        setStep('upgrade-steps', 1);
+        document.getElementById('up-status').textContent = 'Client → Server: HTTP Upgrade 요청';
+        addLog('upgrade-log', '');
+        addLog('upgrade-log', '<span class="log-http">▶ HTTP REQUEST</span> <span class="log-info">━━━━━━━━━━━━━━━▶</span>');
+        const lines = [
+            '<span class="h-method">GET</span> <span class="h-url">/connect</span> HTTP/1.1',
+            '<span class="h-key">Host:</span> <span class="h-val">localhost:8080</span>',
+            '<span class="h-key">Upgrade:</span> <span class="h-val">websocket</span> <span class="h-comment">← 핵심! 프로토콜 전환 요청</span>',
+            '<span class="h-key">Connection:</span> <span class="h-val">Upgrade</span> <span class="h-comment">← 연결 변경 의사</span>',
+            '<span class="h-key">Sec-WebSocket-Key:</span> <span class="h-val">dGhlIHNhbXBsZSBub25jZQ==</span> <span class="h-comment">← Base64 랜덤 키</span>',
+            '<span class="h-key">Sec-WebSocket-Version:</span> <span class="h-val">13</span>',
+            '<span class="h-key">Sec-WebSocket-Protocol:</span> <span class="h-val">v10.stomp, v11.stomp</span> <span class="h-comment">← STOMP 요청</span>',
+        ];
+        for (const l of lines) { await delay(180); addHL('upgrade-headers', l); }
+    },
+    async () => {
+        setStep('upgrade-steps', 2);
+        document.getElementById('up-status').textContent = '서버: Upgrade 요청 검증 중...';
+        addLog('upgrade-log', '');
+        addLog('upgrade-log', '<span class="log-ws">▶ SERVER</span> 핸드셰이크 검증:');
+        const checks = ['Upgrade: websocket 헤더 확인', 'Version: 13 지원 확인', 'Origin: allowedOriginPatterns("*") 통과', '/connect 엔드포인트 매칭', 'Sec-WebSocket-Key → SHA-1 → Base64 Accept 키 생성'];
+        for (const c of checks) { await delay(280); addLog('upgrade-log', `<span class="log-info">   ✓ ${c}</span>`); }
+    },
+    async () => {
+        setStep('upgrade-steps', 3);
+        document.getElementById('up-status').textContent = 'Server → Client: 101 Switching Protocols';
+        addLog('upgrade-log', '');
+        addLog('upgrade-log', '<span class="log-ws">▶ HTTP RESPONSE</span> <span class="log-info">◀━━━━━━━━━━━━━━━</span>');
+        addHL('upgrade-headers', '');
+        const lines = [
+            '<span class="h-status">HTTP/1.1 101 Switching Protocols</span> <span class="h-comment">← 프로토콜 전환 성공!</span>',
+            '<span class="h-key">Upgrade:</span> <span class="h-val">websocket</span>',
+            '<span class="h-key">Connection:</span> <span class="h-val">Upgrade</span>',
+            '<span class="h-key">Sec-WebSocket-Accept:</span> <span class="h-val">s3pPLMBiTxaQ9kYGzzhZRbK+xOo=</span>',
+            '<span class="h-key">Sec-WebSocket-Protocol:</span> <span class="h-val">v10.stomp</span>',
+        ];
+        for (const l of lines) { await delay(180); addHL('upgrade-headers', l); }
+        addLog('upgrade-log', '<span class="log-highlight">   ★ 101 Switching Protocols — HTTP → WebSocket 전환!</span>');
+    },
+    async () => {
+        setStep('upgrade-steps', 4);
+        setL('up-line', 'l-active-ws l-pulse');
+        document.getElementById('up-dot').className = 'status-dot ws';
+        document.getElementById('up-status').textContent = 'WebSocket 연결 수립 — 양방향 Full-Duplex';
+        addLog('upgrade-log', '');
+        addLog('upgrade-log', '<span class="log-ws">▶ WebSocket</span> <span class="log-highlight">연결 수립!</span> 양방향 통신 시작');
+        addLog('upgrade-log', '<span class="log-info">   → 같은 TCP 소켓 위에서 ws:// 프레임 통신</span>');
+    },
+    async () => {
+        setStep('upgrade-steps', 5);
+        setL('up-line', 'l-active-stomp');
+        document.getElementById('up-dot').className = 'status-dot stomp';
+        document.getElementById('up-status').textContent = 'STOMP CONNECT 프레임 전송';
+        addLog('upgrade-log', '');
+        addLog('upgrade-log', '<span class="log-stomp">▶ STOMP</span> CONNECT 프레임 ━━━━━━━▶');
+        addHL('upgrade-headers', '');
+        const lines = ['<span class="h-comment">// STOMP: WebSocket 위의 메시징 프로토콜</span>', '<span class="h-method">CONNECT</span>', '<span class="h-key">accept-version:</span><span class="h-val">1.1,1.0</span>', '<span class="h-key">heart-beat:</span><span class="h-val">10000,10000</span>'];
+        for (const l of lines) { await delay(120); addHL('upgrade-headers', l); }
+    },
+    async () => {
+        setStep('upgrade-steps', 6);
+        document.getElementById('up-status').textContent = 'STOMP CONNECTED — 메시지 발행/구독 준비 완료!';
+        addHL('upgrade-headers', '');
+        addHL('upgrade-headers', '<span class="h-status">CONNECTED</span>');
+        addHL('upgrade-headers', '<span class="h-key">version:</span><span class="h-val">1.1</span>');
+        addLog('upgrade-log', '');
+        addLog('upgrade-log', '<span class="log-stomp">▶ STOMP</span> CONNECTED ◀━━━━━━━');
+        addLog('upgrade-log', '<span class="log-highlight">★ 전체 완료: TCP → HTTP Upgrade → WebSocket → STOMP</span>');
+        addLog('upgrade-log', '<span class="log-info">   이제 subscribe() / send() 가능!</span>');
+        document.getElementById('btn-up-next').disabled = true;
+    }
+];
+
+function startUpgrade() {
+    upStep = -1;
+    document.getElementById('upgrade-headers').innerHTML = '';
+    document.getElementById('upgrade-log').innerHTML = '';
+    document.getElementById('btn-up-start').disabled = true;
+    document.getElementById('btn-up-next').disabled = false;
+    addLog('upgrade-log', '<span class="log-info">▶ 시뮬레이션 시작 — "다음 단계" 를 눌러주세요</span>');
+    nextUpgradeStep();
+}
+async function nextUpgradeStep() {
+    upStep++;
+    if (upStep < upSteps.length) {
+        document.getElementById('btn-up-next').disabled = true;
+        await upSteps[upStep]();
+        if (upStep < upSteps.length - 1) document.getElementById('btn-up-next').disabled = false;
+    }
+}
+function resetUpgrade() {
+    upStep = -1;
+    document.getElementById('upgrade-headers').innerHTML = '';
+    document.getElementById('upgrade-log').innerHTML = '';
+    document.getElementById('up-dot').className = 'status-dot';
+    document.getElementById('up-status').textContent = '대기 중 — 버튼을 눌러 핸드셰이크를 시작하세요';
+    setL('up-line', '');
+    document.getElementById('btn-up-start').disabled = false;
+    document.getElementById('btn-up-next').disabled = true;
+    document.querySelectorAll('#upgrade-steps .step-chip').forEach(c => c.className = 'step-chip');
+}
+
+// ====================================================================
+// TAB 2: POST /chat → Spring → SimpleBroker
+// ====================================================================
+let pSeq = 0;
+let pDbId = 100;
+
+async function sendPost() {
+    const msg = document.getElementById('p-msg').value.trim();
+    if (!msg) return;
+    pSeq++; pDbId++;
+    document.getElementById('btn-p-send').disabled = true;
+    const L = 'post-log';
+
+    // 1. HTTP POST (새로운 TCP 연결)
+    addLog(L, '');
+    addLog(L, `<span class="log-http">▶ HTTP POST</span> /chat <span class="log-info">{msg: "${msg}"}</span> ━━━━▶`);
+    addLog(L, `<span class="log-info">   ℹ HTTP 요청: 새로운 TCP 연결 → 요청 → 응답 → 연결 종료 (단방향)</span>`);
+    flash('p-client');
+    setL('p-l1', 'l-active-http');
+    await delay(500);
+
+    // 2. Controller receives
+    addLog(L, `<span class="log-data">▶ CONTROLLER</span> @PostMapping("/chat") → ChatController.save("${msg}")`);
+    flash('p-spring');
+    await delay(400);
+
+    // 3. DB save
+    setL('p-l2', 'l-active-http');
+    flash('p-db');
+    addLog(L, `<span class="log-http">▶ SERVICE</span> chatService.save("${msg}") → DB INSERT → id=${pDbId}`);
+    await delay(500);
+
+    // 4. convertAndSend to broker
+    setL('p-l3', 'l-active-stomp');
+    flash('p-broker');
+    addLog(L, `<span class="log-stomp">▶ BROKER</span> sms.convertAndSend(<span class="log-highlight">"/sub/chat"</span>, {id:${pDbId}, msg:"${msg}"})`);
+    await delay(500);
+
+    // 5. Deliver to WS subscribers (상시 연결선 위에 데이터 흐름)
+    // 상시 연결선을 활성화
+    document.getElementById('p-ws1').classList.add('ws-active');
+    document.getElementById('p-ws2').classList.add('ws-active');
+    document.getElementById('p-ws3').classList.add('ws-active');
+    setL('p-l4', 'l-active-stomp');
+    setL('p-l5', 'l-active-stomp');
+    setL('p-l6', 'l-active-stomp');
+    flash('p-sub1'); flash('p-sub2'); flash('p-sub3');
+    flashBox('p-box-a'); flashBox('p-box-b'); flashBox('p-box-c');
+    const payload = `{id:${pDbId}, msg:"${msg}"}`;
+    appendMsg('p-msgs-a', payload, pSeq);
+    appendMsg('p-msgs-b', payload, pSeq);
+    appendMsg('p-msgs-c', payload, pSeq);
+    addLog(L, `<span class="log-ws">▶ DELIVER</span> <strong>이미 연결된 WebSocket</strong>을 통해 /sub/chat 구독자 전원에게 Push!`);
+    addLog(L, `<span class="log-info">   ℹ HTTP POST로 보냈지만, 구독자들은 이미 WS로 연결되어 있어서 즉시 수신</span>`);
+    addLog(L, `<span class="log-info">   ℹ 파란 선 = 이미 맺어진 WebSocket 상시 연결 / 보라 선 = 이번 데이터 전송</span>`);
+
+    await delay(1000);
+    clearLines(['p-l1','p-l2','p-l3','p-l4','p-l5','p-l6']);
+    document.getElementById('p-ws1').classList.remove('ws-active');
+    document.getElementById('p-ws2').classList.remove('ws-active');
+    document.getElementById('p-ws3').classList.remove('ws-active');
+    document.getElementById('btn-p-send').disabled = false;
+}
+
+// ====================================================================
+// TAB 3: Client → /sub 직접 → SimpleBroker (Controller 스킵)
+// ====================================================================
+let dSeq = 0;
+
+async function sendDirect() {
+    const topic = document.getElementById('d-topic').value;
+    const msg = document.getElementById('d-msg').value.trim();
+    if (!msg) return;
+    dSeq++;
+    const L = 'direct-log';
+
+    addLog(L, '');
+    addLog(L, `<span class="log-ws">▶ WebSocket 전이중 터널</span> 이미 열려있는 연결을 통해 STOMP 프레임 전송`);
+    addLog(L, `<span class="log-stomp">▶ STOMP SEND</span> stompClient.send(<span class="log-highlight">"${topic}"</span>, {}, "${msg}")`);
+    addLog(L, `<span class="log-info">   ℹ 파란 상시 연결선 위에서 STOMP 프레임이 이동합니다!</span>`);
+    flash('d-publisher');
+    document.getElementById('d-ws0').classList.add('ws-active');
+    await delay(400);
+
+    // Broker matches /sub prefix
+    setL('d-l1', 'l-active-pink');
+    flash('d-broker');
+    document.getElementById('d-ws0').classList.remove('ws-active');
+    addLog(L, `<span class="log-stomp">▶ BROKER</span> prefix <span class="log-highlight">/sub</span> 매칭 → <span class="log-error">Controller 스킵!</span> 바로 구독자에게`);
+    addLog(L, `<span class="log-info">   ℹ @MessageMapping 탐색 안 함 → 비즈니스 로직 없이 순수 릴레이</span>`);
+    await delay(500);
+
+    const isChat = topic === '/sub/chat';
+    if (isChat) {
+        document.getElementById('d-ws1').classList.add('ws-active');
+        document.getElementById('d-ws2').classList.add('ws-active');
+        setL('d-l3', 'l-active-pink'); setL('d-l4', 'l-active-pink');
+        flash('d-sub1'); flash('d-sub2');
+        flashBox('d-box-a'); flashBox('d-box-b');
+        appendMsg('d-msgs-a', msg, dSeq);
+        appendMsg('d-msgs-b', msg, dSeq);
+        addLog(L, `<span class="log-ws">▶ DELIVER</span> 상시 WS 연결을 통해 Subscriber A, B ← "${msg}"`);
+        addLog(L, `<span class="log-info">   ℹ Subscriber C는 /sub/notification 구독 → 수신 안 함</span>`);
+    } else {
+        document.getElementById('d-ws3').classList.add('ws-active');
+        setL('d-l5', 'l-active-pink');
+        flash('d-sub3');
+        flashBox('d-box-c');
+        appendMsg('d-msgs-c', msg, dSeq);
+        addLog(L, `<span class="log-ws">▶ DELIVER</span> 상시 WS 연결을 통해 Subscriber C ← "${msg}"`);
+        addLog(L, `<span class="log-info">   ℹ Subscriber A, B는 /sub/chat 구독 → 수신 안 함</span>`);
+    }
+    await delay(1000);
+    clearLines(['d-l1','d-l3','d-l4','d-l5']);
+    ['d-ws1','d-ws2','d-ws3'].forEach(id => document.getElementById(id).classList.remove('ws-active'));
+}
+
+// ====================================================================
+// TAB 4: /pub → @MessageMapping + @SendTo → Broker
+// ====================================================================
+let sSeq = 0;
+
+async function sendSendTo() {
+    const number = document.getElementById('s-msg').value.trim();
+    if (!number) return;
+    sSeq++;
+    const L = 'sendto-log';
+
+    // 1. Publisher sends via WebSocket full-duplex tunnel
+    addLog(L, '');
+    addLog(L, `<span class="log-ws">▶ WebSocket 전이중 터널</span> 이미 열려있는 연결을 통해 STOMP 프레임 전송`);
+    addLog(L, `<span class="log-data">▶ STOMP SEND</span> stompClient.send(<span class="log-highlight">"/pub/room"</span>, {}, "${number}")`);
+    addLog(L, `<span class="log-info">   ℹ 파란 상시 연결선 위에서 STOMP 프레임이 이동합니다!</span>`);
+    flash('s-publisher');
+    document.getElementById('s-ws0').classList.add('ws-active');
+    setL('s-l1', 'l-active-data');
+    await delay(500);
+
+    // 2. SimpleAnnotationMethodMessageHandler receives → strips /pub → finds /room
+    document.getElementById('s-ws0').classList.remove('ws-active');
+    flash('s-sam');
+    addLog(L, `<span class="log-data">▶ SAM</span> SimpleAnnotationMethodMessageHandler 수신:`);
+    addLog(L, `<span class="log-info">   prefix "/pub" 제거 → "/room" → @MessageMapping("/room") 탐색</span>`);
+    await delay(500);
+
+    // 3. SAM → Controller (@MessageMapping matched)
+    setL('s-l2', 'l-active-data');
+    flash('s-controller');
+    addLog(L, `<span class="log-data">▶ CONTROLLER</span> @MessageMapping("/room") 매칭 → pubTest2("${number}") 호출`);
+    addLog(L, `<span class="log-info">   System.out: "나 요청돼? : ${number}"`);
+    addLog(L, `<span class="log-info">   return "hello world" → <span class="log-highlight">@SendTo("/sub")</span>로 전달</span>`);
+    await delay(500);
+
+    // 4. @SendTo → Broker
+    setL('s-l3', 'l-active-stomp');
+    flash('s-broker');
+    addLog(L, `<span class="log-stomp">▶ BROKER</span> @SendTo("/sub") → "hello world"를 <span class="log-highlight">/sub 구독자 전원</span>에게`);
+    await delay(500);
+
+    // 5. Broker → ALL subscribers (상시 연결선 활성화)
+    ['s-ws1','s-ws2','s-ws3'].forEach(id => document.getElementById(id).classList.add('ws-active'));
+    setL('s-l4', 'l-active-stomp'); setL('s-l5', 'l-active-stomp'); setL('s-l6', 'l-active-stomp');
+    flash('s-sub1'); flash('s-sub2'); flash('s-sub3');
+    flashBox('s-box-a'); flashBox('s-box-b'); flashBox('s-box-c');
+    appendMsg('s-msgs-a', 'hello world', sSeq);
+    appendMsg('s-msgs-b', 'hello world', sSeq);
+    appendMsg('s-msgs-c', 'hello world', sSeq);
+    addLog(L, `<span class="log-ws">▶ DELIVER</span> 상시 WS 연결을 통해 모든 /sub 구독자에게 "hello world" 전달`);
+    addLog(L, `<span class="log-error">   ⚠ @SendTo는 고정 목적지! number="${number}"를 보냈지만 구독자 구분 불가</span>`);
+
+    await delay(1000);
+    clearLines(['s-l1','s-l2','s-l3','s-l4','s-l5','s-l6']);
+    ['s-ws1','s-ws2','s-ws3'].forEach(id => document.getElementById(id).classList.remove('ws-active'));
+}
+
+// ====================================================================
+// TAB 5: /pub → @MessageMapping → convertAndSend("/sub/"+number) ★
+// ====================================================================
+let fSeq = 0;
+
+async function sendFinal() {
+    const number = document.getElementById('f-number').value;
+    fSeq++;
+    const L = 'final-log';
+
+    // 1. Publisher sends via WebSocket full-duplex tunnel
+    addLog(L, '');
+    addLog(L, `<span class="log-ws">▶ WebSocket 전이중 터널</span> 이미 열려있는 연결을 통해 STOMP 프레임 전송`);
+    addLog(L, `<span class="log-cyan">▶ STOMP SEND</span> stompClient.send(<span class="log-highlight">"/pub/room"</span>, {}, "${number}")`);
+    addLog(L, `<span class="log-info">   ℹ 파란 상시 연결선 위에서 STOMP 프레임이 이동합니다!</span>`);
+    flash('f-publisher');
+    document.getElementById('f-ws0').classList.add('ws-active');
+    setL('f-l1', 'l-active-cyan');
+    await delay(500);
+
+    // 2. SimpleAnnotationMethodMessageHandler receives → strips /pub → finds /room
+    document.getElementById('f-ws0').classList.remove('ws-active');
+    flash('f-sam');
+    addLog(L, `<span class="log-data">▶ SAM</span> SimpleAnnotationMethodMessageHandler 수신:`);
+    addLog(L, `<span class="log-info">   prefix "/pub" 제거 → "/room" → @MessageMapping("/room") 탐색</span>`);
+    await delay(500);
+
+    // 3. SAM → Controller (@MessageMapping matched)
+    setL('f-l2', 'l-active-data');
+    flash('f-controller');
+    addLog(L, `<span class="log-data">▶ CONTROLLER</span> @MessageMapping("/room") 매칭 → pubTest1("${number}") 호출`);
+    addLog(L, `<span class="log-info">   System.out: "나 요청돼? : ${number}"`);
+    // Controller
+    flash('f-controller');
+    addLog(L, `<span class="log-data">▶ CONTROLLER</span> pubTest1("${number}") 실행 → "나 요청돼? : ${number}"`);
+    addLog(L, `<span class="log-cyan">   sms.convertAndSend(<span class="log-highlight">"/sub/${number}"</span>, "hello world ${number}")</span>`);
+    await delay(500);
+
+    // Broker → dynamic destination
+    setL('f-l3', 'l-active-cyan');
+    flash('f-broker');
+    addLog(L, `<span class="log-stomp">▶ BROKER</span> "/sub/${number}" 구독자에게만 전달!`);
+    await delay(500);
+
+    // Deliver only to matching subscribers (상시 연결선 중 해당 방만 활성화)
+    const responseMsg = `hello world ${number}`;
+    if (number === '1') {
+        document.getElementById('f-ws1').classList.add('ws-active');
+        document.getElementById('f-ws2').classList.add('ws-active');
+        setL('f-l4', 'l-active-cyan'); setL('f-l5', 'l-active-cyan');
+        flash('f-sub1'); flash('f-sub2');
+        flashBox('f-box-a'); flashBox('f-box-b');
+        appendMsg('f-msgs-a', responseMsg, fSeq);
+        appendMsg('f-msgs-b', responseMsg, fSeq);
+        addLog(L, `<span class="log-ws">▶ DELIVER</span> 상시 WS 연결을 통해 Subscriber A, B (/sub/1) ← "${responseMsg}"`);
+        addLog(L, `<span class="log-info">   ℹ Subscriber C, D (/sub/2) → WS 연결은 있지만 방이 달라 수신 안 함!</span>`);
+    } else {
+        document.getElementById('f-ws3').classList.add('ws-active');
+        document.getElementById('f-ws4').classList.add('ws-active');
+        setL('f-l6', 'l-active-cyan'); setL('f-l7', 'l-active-cyan');
+        flash('f-sub3'); flash('f-sub4');
+        flashBox('f-box-c'); flashBox('f-box-d');
+        appendMsg('f-msgs-c', responseMsg, fSeq);
+        appendMsg('f-msgs-d', responseMsg, fSeq);
+        addLog(L, `<span class="log-ws">▶ DELIVER</span> 상시 WS 연결을 통해 Subscriber C, D (/sub/2) ← "${responseMsg}"`);
+        addLog(L, `<span class="log-info">   ℹ Subscriber A, B (/sub/1) → WS 연결은 있지만 방이 달라 수신 안 함!</span>`);
+    }
+
+    addLog(L, `<span class="log-highlight">   ★ convertAndSend로 동적 목적지 → 구독자 세분화 성공!</span>`);
+    addLog(L, `<span class="log-info">   ℹ 파란 선 = 상시 WebSocket 연결 / 색상 선 = 이번 데이터 전송</span>`);
+
+    await delay(1000);
+    clearLines(['f-l1','f-l2','f-l3','f-l4','f-l5','f-l6','f-l7']);
+    ['f-ws1','f-ws2','f-ws3','f-ws4'].forEach(id => document.getElementById(id).classList.remove('ws-active'));
+}
+
+// ====================================================================
+// TAB 6: Firebase FCM — Backend(HTTP POST) → FCM → Mobile(상시 연결)
+// ====================================================================
+let fcSeq = 0;
+
+function pushNotif(screenId, title, body) {
+    const el = document.getElementById(screenId);
+    // 맨 처음 "알림 대기 중..." 안내를 제거
+    const placeholder = el.querySelector('div[style*="opacity:0.5"]');
+    if (placeholder) placeholder.remove();
+    const div = document.createElement('div');
+    div.className = 'phone-notif';
+    div.innerHTML = `<strong>🔔 ${title}</strong><br>${body}`;
+    el.prepend(div);
+}
+
+function flashPhone(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('glow');
+    setTimeout(() => el.classList.remove('glow'), 1100);
+}
+
+async function sendFcm() {
+    const target = document.getElementById('fc-target').value;
+    const msg = document.getElementById('fc-msg').value.trim();
+    if (!msg) return;
+    fcSeq++;
+    const L = 'fcm-log';
+    const title = '새 알림';
+
+    // 타겟 라벨
+    const targetLabelMap = {
+        'all': '전체 Broadcast (A, B, C)',
+        'a': '휴대폰 A (user_token_A)',
+        'b': '휴대폰 B (user_token_B)',
+        'c': '휴대폰 C (user_token_C)',
+    };
+
+    // 1. Admin Backend → FCM Server (HTTP POST 단발성)
+    addLog(L, '');
+    addLog(L, `<span class="log-http">▶ HTTP POST</span> https://fcm.googleapis.com/v1/.../messages:send ━━━━▶`);
+    addLog(L, `<span class="log-info">   ℹ 단발성 HTTP 요청: 새 TCP → 요청 → 응답 → 연결 종료 (상시 연결 불필요)</span>`);
+    addLog(L, `<span class="log-info">   targets: ${targetLabelMap[target]}</span>`);
+    addLog(L, `<span class="log-info">   notification: { title: "${title}", body: "${msg}" }</span>`);
+    flash('fc-admin');
+    setL('fc-l1', 'l-active-http');
+    await delay(600);
+
+    // 2. FCM Server 수신
+    flash('fc-server');
+    addLog(L, `<span class="log-pink" style="color:#ff6b9d;">▶ FCM SERVER</span> 요청 수신 → 디바이스 토큰 조회 → 상시 연결 채널 사용`);
+    await delay(500);
+    setL('fc-l1', '');
+
+    // 3. 휴대폰에 Push (상시 연결선 활성화)
+    const deliver = async (wsId, phoneId, screenId, lineId, label) => {
+        document.getElementById(wsId).classList.add('ws-active');
+        setL(lineId, 'l-active-ws');
+        flashPhone(phoneId);
+        pushNotif(screenId, title, msg);
+        addLog(L, `<span class="log-ws">▶ PUSH</span> 상시 연결 채널을 통해 <strong>${label}</strong> ← "${msg}"`);
+        await delay(350);
+    };
+
+    if (target === 'all' || target === 'a') await deliver('fc-ws1', 'fc-phone1', 'fc-screen1', 'fc-l2', '휴대폰 A');
+    if (target === 'all' || target === 'b') await deliver('fc-ws2', 'fc-phone2', 'fc-screen2', 'fc-l3', '휴대폰 B');
+    if (target === 'all' || target === 'c') await deliver('fc-ws3', 'fc-phone3', 'fc-screen3', 'fc-l4', '휴대폰 C');
+
+    addLog(L, `<span class="log-highlight">   ★ 발신은 HTTP 단방향, 수신은 상시 연결 — 하이브리드 구조!</span>`);
+    addLog(L, `<span class="log-info">   ℹ 앱이 꺼져있어도 OS가 상시 연결을 유지 → 알림 수신 가능</span>`);
+
+    await delay(1200);
+    clearLines(['fc-l1','fc-l2','fc-l3','fc-l4']);
+    ['fc-ws1','fc-ws2','fc-ws3'].forEach(id => document.getElementById(id).classList.remove('ws-active'));
+}
+</script>
+
+</body>
+</html>

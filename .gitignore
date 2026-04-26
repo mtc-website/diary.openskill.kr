@@ -1,0 +1,11 @@
+# Build artifacts (script + intermediate sources)
+build_posts.py
+src_ascii/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
