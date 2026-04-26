@@ -23,9 +23,11 @@
         <span class="site-brand__logo">◆</span>
         <span class="site-brand__name">Open Skill Diary</span>
       </a>
-      <nav class="site-nav">
-        <a href="#posts">Posts</a>
-        <a href="#about">About</a>
+      <nav class="site-nav">        <!-- pagefind:body:start -->
+        <div class="osd-search-wrap">
+          <input id="osd-search-input" type="search" placeholder="검색…" autocomplete="off" />
+        </div>
+        <!-- pagefind:body:end -->
         <button id="theme-toggle" class="theme-toggle" type="button" aria-label="테마 전환">
           <span class="theme-toggle__icon theme-toggle__icon--sun">☀</span>
           <span class="theme-toggle__icon theme-toggle__icon--moon">☾</span>
@@ -50,15 +52,9 @@
         <div class="posts__filter" id="posts-filter"></div>
       </div>
       <ul class="posts__list" id="posts-list"></ul>
+      <nav class="posts__pager" id="posts-pager" aria-label="페이지"></nav>
     </section>
-
-    <section class="about" id="about">
-      <div class="about__inner">
-        <h2>About</h2>
-        <p>분산 시스템과 백엔드 아키텍처를 학습하며 만든 인터랙티브 시뮬레이터를 모아둔 기술 일기장입니다. 각 글은 실제로 동작하는 시뮬레이터를 포함하므로, 클릭하고 조작하며 원리를 체득할 수 있습니다.</p>
-      </div>
-    </section>
-  </main>
+</main>
 
   <footer class="site-footer">
     <div class="site-footer__inner">
@@ -68,5 +64,12 @@
   </footer>
 
   <script src="assets/script.js"></script>
+  <!-- pagefind:deps:start -->
+  <script type="module">
+    import("./pagefind/pagefind.js")
+      .then(pf => { window.__pagefind = pf; pf.init && pf.init(); })
+      .catch(() => { /* 빌드 전이거나 미생성 — 폴백 substring 매치로 동작 */ });
+  </script>
+  <!-- pagefind:deps:end -->
 </body>
 </html>

@@ -522,5 +522,37 @@ function animatePacket(cl,msg,color,isDummy,onDone){
 
 window.addEventListener('resize',()=>{if(running)renderNet();});
 </script>
+  <!-- hamstern:comments:start -->
+  <section class="comments" style="max-width: 900px; margin: 32px auto; padding: 0 24px;">
+    <h3 style="font-size: 18px; color: var(--text, #e8eef9); margin: 0 0 12px;">💬 댓글</h3>
+    <script src="https://giscus.app/client.js"
+            data-repo="mtc-website/diary.openskill.kr"
+            data-repo-id="R_kgDOSE6ZYw"
+            data-category="Announcements"
+            data-category-id="DIC_kwDOSE6ZY84C7u-S"
+            data-mapping="pathname"
+            data-strict="0"
+            data-reactions-enabled="1"
+            data-emit-metadata="0"
+            data-input-position="bottom"
+            data-theme="preferred_color_scheme"
+            data-lang="ko"
+            crossorigin="anonymous"
+            async></script>
+  </section>
+  <script>
+    (function(){
+      var orig = window.__osdSetTheme || function(){};
+      window.__osdSetTheme = function(t){
+        orig(t);
+        var iframe = document.querySelector('iframe.giscus-frame');
+        if (iframe) iframe.contentWindow.postMessage(
+          { giscus: { setConfig: { theme: t === 'dark' ? 'dark' : 'light' } } },
+          'https://giscus.app'
+        );
+      };
+    })();
+  </script>
+  <!-- hamstern:comments:end -->
 </body>
 </html>

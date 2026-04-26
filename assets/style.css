@@ -445,3 +445,108 @@ a { color: inherit; text-decoration: none; }
   .posts { padding: 40px 16px; }
   .posts__list { grid-template-columns: 1fr; }
 }
+
+/* ============================================================
+ * /hams:remind addon — 헤더 검색 / 페이저 / hero 트림 / 카테고리 숨김
+ * ============================================================ */
+
+.osd-search-wrap { display: inline-flex; align-items: center; position: relative; }
+#osd-search-input {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 200px;
+  padding: 7px 12px;
+  font: 500 13.5px/1.2 var(--font-sans);
+  color: var(--text);
+  background: var(--bg-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  transition: border var(--transition), background var(--transition), width var(--transition);
+}
+#osd-search-input::placeholder { color: var(--text-subtle); }
+#osd-search-input:focus {
+  border-color: var(--accent);
+  background: var(--bg-elevated);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+  width: 240px;
+}
+@media (max-width: 720px) {
+  #osd-search-input { width: 130px; }
+  #osd-search-input:focus { width: 160px; }
+}
+
+/* Hero 트림 — 한 줄, 위아래 여백 축소 */
+.hero { padding: 28px 24px 18px !important; }
+.hero__inner { max-width: 1200px; margin: 0 auto; }
+.hero__eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.hero__title {
+  font-size: clamp(20px, 2.4vw, 26px);
+  line-height: 1.25;
+  margin: 0 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hero__lede {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-width: 1100px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+.hero__categories { display: none !important; }
+
+/* Posts 섹션 — 위아래 여백 축소, 필터칩 숨김 */
+.posts { padding: 18px 24px 28px !important; }
+.posts__header { margin-bottom: 14px !important; }
+.posts__filter { display: none !important; }
+
+/* 페이저 */
+.posts__pager {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 18px 0 4px;
+  flex-wrap: wrap;
+}
+.posts__pager button {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 6px;
+  font: 500 13px var(--font-sans);
+  cursor: pointer;
+  transition: background var(--transition), border var(--transition), color var(--transition);
+}
+.posts__pager button:hover { border-color: var(--accent); color: var(--accent); }
+.posts__pager button.is-active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.posts__pager button:disabled { opacity: 0.4; cursor: not-allowed; color: var(--text-subtle); }
+
+/* hams:remind addon v2 — hero padding 추가 축소, line gap 보존 */
+.hero { padding: 14px 24px 12px !important; }
+.hero__eyebrow { margin-bottom: 6px !important; }
+.hero__title   { margin: 0 0 6px !important; }
+.hero__lede    { margin: 0 !important; }
+
+/* hams:remind addon v3 — hero__inner padding 잡기 + 텍스트 line gap 회복 */
+.hero { padding: 0 !important; }
+.hero__inner { padding: 16px 24px 16px !important; }
+.hero__eyebrow { margin-bottom: 14px !important; }
+.hero__title   { margin: 0 0 12px !important; }
+.hero__lede    { margin: 0 !important; }
+
+/* hams:remind addon v4 — hero padding 50/24/50 */
+.hero__inner { padding: 50px 24px !important; }
