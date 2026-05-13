@@ -7,17 +7,18 @@
   "posts": [
     {
       "id": "tomcat-architecture",
-      "title": "Apache + Tomcat 아키텍처 가이드",
+      "title": "아파치 아저씨와 톰캣 주방의 비밀 — 어린이를 위한 웹 서버 모험기",
       "date": "2026-05-14",
-      "summary": "브라우저 요청이 Apache를 지나 Tomcat의 Servlet까지 어떻게 도달하는지, Connector·Thread Pool·Session·web.xml·AJP까지 한 흐름으로 정리한 학습 자료.",
+      "summary": "내가 누른 버튼 하나가 어떻게 서버까지 갔다 다시 돌아올까? 아파치 안내 아저씨와 톰캣 주방의 요리사들을 따라가며, 정적 파일·동적 요리·세션·쿠키·스레드풀까지 동화처럼 풀어낸 그림책 같은 가이드.",
       "filename": "posts/9/tomcat-architecture.html",
       "tags": [
         "tomcat",
         "apache",
+        "story",
+        "beginner",
+        "illustrated",
         "servlet",
-        "ajp",
-        "session",
-        "thread-pool"
+        "session"
       ],
       "engine": "html",
       "sourcePath": "_src/tomcat-architecture.html",
