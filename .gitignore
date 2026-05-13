@@ -9,3 +9,6 @@ Thumbs.db
 # Editors
 .vscode/
 .idea/
+
+# Hamstern session logs (local only)
+.hamstern/baby-hamster/

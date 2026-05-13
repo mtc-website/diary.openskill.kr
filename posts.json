@@ -7,7 +7,6 @@
       "id": "msa-k8s-websocket",
       "title": "MSA · Kubernetes · WebSocket 통합 시뮬레이터",
       "date": "2026-04-26",
-      "category": "msa",
       "summary": "한 화면에서 K8s 클러스터·MSA 서비스 메쉬·WebSocket 터널·멱등성 테스트까지 4개의 시뮬레이션을 탭으로 전환하며 실험합니다.",
       "filename": "posts/1/msa-k8s-websocket.html",
       "tags": [
@@ -21,13 +20,15 @@
       "sourcePath": "_src/msa-k8s-websocket.html",
       "themeInjected": true,
       "originalFilename": "msa-k8s-websocket.html",
-      "postId": 1
+      "postId": 1,
+      "categories": [
+        "msa"
+      ]
     },
     {
       "id": "websocket-protocol",
       "title": "WebSocket 프로토콜 동작 시뮬레이터",
       "date": "2026-04-26",
-      "category": "msa",
       "summary": "HTTP 핸드셰이크 → Upgrade → 양방향 프레임 교환까지, WebSocket이 실제로 어떤 바이트를 주고받는지 프로토콜 레벨에서 관찰합니다.",
       "filename": "posts/5/websocket-protocol.html",
       "tags": [
@@ -40,13 +41,15 @@
       "sourcePath": "_src/websocket-protocol.html",
       "themeInjected": true,
       "originalFilename": "websocket-protocol.html",
-      "postId": 5
+      "postId": 5,
+      "categories": [
+        "msa"
+      ]
     },
     {
       "id": "sse",
       "title": "SSE(Server-Sent Events) 시뮬레이터",
       "date": "2026-04-26",
-      "category": "msa",
       "summary": "단방향 스트리밍의 표준, Server-Sent Events. text/event-stream MIME, 자동 재연결, 이벤트 ID 복구를 시각화합니다.",
       "filename": "posts/6/sse.html",
       "tags": [
@@ -59,13 +62,15 @@
       "sourcePath": "_src/sse.html",
       "themeInjected": true,
       "originalFilename": "sse.html",
-      "postId": 6
+      "postId": 6,
+      "categories": [
+        "msa"
+      ]
     },
     {
       "id": "ajax-polling",
       "title": "AJAX 폴링 채팅 시뮬레이터",
       "date": "2026-04-26",
-      "category": "msa",
       "summary": "WebSocket이 없던 시절의 실시간 통신 방식 — 짧은 폴링과 롱 폴링의 트래픽·지연을 비교하며 한계를 체감합니다.",
       "filename": "posts/7/ajax-polling.html",
       "tags": [
@@ -78,7 +83,10 @@
       "sourcePath": "_src/ajax-polling.html",
       "themeInjected": true,
       "originalFilename": "ajax-polling.html",
-      "postId": 7
+      "postId": 7,
+      "categories": [
+        "msa"
+      ]
     }
   ]
 }
