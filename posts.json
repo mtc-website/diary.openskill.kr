@@ -24,66 +24,6 @@
       "postId": 1
     },
     {
-      "id": "saga-orchestration",
-      "title": "Saga 오케스트레이션 — 대출 심사 플로우",
-      "date": "2026-04-26",
-      "category": "msa",
-      "summary": "중앙 오케스트레이터가 신용평가·한도승인·자금이체 서비스를 순차 호출하며 실패 시 보상 트랜잭션을 발동시키는 Saga Orchestration 패턴을 시각화합니다.",
-      "filename": "posts/2/saga-orchestration.html",
-      "tags": [
-        "saga",
-        "orchestration",
-        "kafka",
-        "msa",
-        "transaction"
-      ],
-      "engine": "html",
-      "sourcePath": "_src/saga-orchestration.html",
-      "themeInjected": true,
-      "originalFilename": "saga-orchestration.html",
-      "postId": 2
-    },
-    {
-      "id": "saga-choreography",
-      "title": "Saga 코레오그래피 — 여행 예약 플로우",
-      "date": "2026-04-26",
-      "category": "msa",
-      "summary": "각 서비스가 이벤트를 발행·구독하며 자율적으로 협업하는 Saga Choreography. 항공·호텔·렌터카 예약과 보상 흐름을 인터랙티브하게 따라갑니다.",
-      "filename": "posts/3/saga-choreography.html",
-      "tags": [
-        "saga",
-        "choreography",
-        "kafka",
-        "event-driven",
-        "msa"
-      ],
-      "engine": "html",
-      "sourcePath": "_src/saga-choreography.html",
-      "themeInjected": true,
-      "originalFilename": "saga-choreography.html",
-      "postId": 3
-    },
-    {
-      "id": "kafka-async-payment",
-      "title": "Kafka 비동기 MSA — 결제 처리 시뮬레이터",
-      "date": "2026-04-26",
-      "category": "msa",
-      "summary": "주문 → 결제 → 알림 서비스가 Kafka 토픽을 통해 비동기로 통신하는 메시지 기반 MSA의 흐름과 백프레셔를 직접 조작하며 학습합니다.",
-      "filename": "posts/4/kafka-async-payment.html",
-      "tags": [
-        "kafka",
-        "async",
-        "msa",
-        "messaging",
-        "payment"
-      ],
-      "engine": "html",
-      "sourcePath": "_src/kafka-async-payment.html",
-      "themeInjected": true,
-      "originalFilename": "kafka-async-payment.html",
-      "postId": 4
-    },
-    {
       "id": "websocket-protocol",
       "title": "WebSocket 프로토콜 동작 시뮬레이터",
       "date": "2026-04-26",
