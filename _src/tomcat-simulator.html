@@ -1,0 +1,2767 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apache + Tomcat 아키텍처 시뮬레이터</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2128;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-dim: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --orange: #d29922;
+  --red: #f85149;
+  --purple: #bc8cff;
+  --pink: #ff7eb6;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans KR", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  padding: 20px;
+  min-height: 100vh;
+  font-size: 13px;
+}
+
+.container { max-width: 1500px; margin: 0 auto; }
+
+h1 {
+  text-align: center;
+  margin-bottom: 6px;
+  color: var(--accent);
+  font-size: 24px;
+}
+
+.subtitle {
+  text-align: center;
+  color: var(--text-dim);
+  margin-bottom: 20px;
+  font-size: 13px;
+}
+
+.controls {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.controls-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-right: 8px;
+  font-weight: bold;
+}
+
+.controls button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  font-family: "SF Mono", Monaco, "Cascadia Code", monospace;
+  transition: all 0.2s;
+}
+
+.controls button:hover { background: var(--border); transform: translateY(-1px); }
+.controls button:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+.controls button.static { border-left: 3px solid var(--green); }
+.controls button.get { border-left: 3px solid var(--accent); }
+.controls button.post { border-left: 3px solid var(--orange); }
+.controls button.jsp { border-left: 3px solid var(--purple); }
+
+.divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border);
+  margin: 0 6px;
+}
+
+.speed-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.speed-control input { width: 100px; }
+
+.pause-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  margin-left: auto;
+  transition: all 0.2s;
+  font-weight: bold;
+}
+
+.pause-btn:hover { background: var(--border); }
+
+.pause-btn.paused {
+  background: var(--orange);
+  color: #000;
+  border-color: var(--orange);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(210, 153, 34, 0.5); }
+  50% { box-shadow: 0 0 0 6px rgba(210, 153, 34, 0); }
+}
+
+/* Template Engine */
+.template-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: monospace;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: all 0.25s;
+}
+
+.template.active {
+  border-color: var(--purple);
+  background: rgba(188, 140, 255, 0.18);
+  box-shadow: 0 0 10px rgba(188, 140, 255, 0.3);
+}
+
+.tmpl-name { color: var(--text); }
+
+.tmpl-state {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: bold;
+}
+
+.tmpl-state.compiled {
+  background: var(--green);
+  color: #000;
+  box-shadow: 0 0 6px rgba(63, 185, 80, 0.4);
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 220px 240px 1fr;
+  gap: 0;
+  margin-bottom: 20px;
+  position: relative;
+  min-height: 560px;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  position: relative;
+}
+
+.panel.browser { border-color: #2d4f74; }
+.panel.apache { border-color: #5a4a2d; margin-left: 18px; margin-right: 18px; }
+.panel.tomcat { border-color: #5a2d4a; }
+
+.panel-title {
+  font-weight: bold;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.panel-title .badge {
+  font-size: 10px;
+  background: var(--panel-2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+/* --- Browser --- */
+.browser-screen {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 10px;
+  min-height: 60px;
+  font-size: 11px;
+}
+
+.url-bar {
+  background: var(--bg);
+  padding: 5px 8px;
+  border-radius: 3px;
+  font-family: monospace;
+  color: var(--green);
+  font-size: 10px;
+  margin-bottom: 8px;
+  word-break: break-all;
+}
+
+.section {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
+}
+
+.cookie-item {
+  font-family: monospace;
+  font-size: 10px;
+  background: var(--bg);
+  padding: 3px 6px;
+  border-radius: 3px;
+  margin: 2px 0;
+  color: var(--pink);
+  word-break: break-all;
+}
+
+.empty-msg {
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 10px;
+}
+
+/* --- Apache --- */
+.apache-module {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  transition: all 0.3s;
+}
+
+.apache-module.active {
+  background: rgba(63, 185, 80, 0.15);
+  border-color: var(--green);
+  box-shadow: 0 0 12px rgba(63, 185, 80, 0.3);
+}
+
+.apache-module .label { font-weight: bold; font-size: 11px; }
+.apache-module .desc { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+
+.static-files {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.static-files-title { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; }
+
+.file-item {
+  font-family: monospace;
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  margin: 2px 0;
+  color: var(--green);
+}
+
+/* --- Tomcat --- */
+.tomcat-section {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px;
+  margin-bottom: 8px;
+  position: relative;
+  transition: all 0.3s;
+}
+
+.tomcat-section.active {
+  border-color: var(--orange);
+  box-shadow: 0 0 12px rgba(210, 153, 34, 0.25);
+}
+
+.tomcat-section-title {
+  font-size: 11px;
+  font-weight: bold;
+  color: var(--orange);
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tomcat-section-title .port {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-weight: normal;
+}
+
+.buffer-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.buffer-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px;
+}
+
+.buffer-box.request-buffer { border-left: 3px solid var(--accent); }
+.buffer-box.response-buffer { border-left: 3px solid var(--orange); }
+
+.buffer-label {
+  font-size: 10px;
+  font-weight: bold;
+  color: var(--text-dim);
+  margin-bottom: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+}
+
+.buffer-section {
+  background: var(--panel-2);
+  border-radius: 3px;
+  padding: 5px;
+  margin-bottom: 3px;
+  font-family: "SF Mono", Monaco, monospace;
+}
+
+.buffer-section.header-section { border-left: 2px solid var(--accent); }
+.buffer-section.body-section { border-left: 2px solid var(--orange); }
+
+.buffer-section-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 3px;
+  letter-spacing: 0.5px;
+}
+
+.buffer-note {
+  font-size: 8px;
+  color: var(--text-dim);
+  font-weight: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  font-style: italic;
+}
+
+.buffer-content .header-key {
+  color: var(--accent);
+  font-weight: bold;
+}
+
+.buffer-content {
+  font-size: 10px;
+  min-height: 18px;
+  line-height: 1.5;
+}
+
+.buffer-content .line {
+  display: block;
+  word-break: break-all;
+  color: var(--text);
+  animation: appearLine 0.3s ease-out;
+}
+
+.buffer-content .line.cookie { color: var(--pink); }
+.buffer-content .line.status { color: var(--green); font-weight: bold; }
+
+@keyframes appearLine {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.commit-status {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: var(--bg);
+  color: var(--text-dim);
+  font-weight: normal;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.commit-status.committed {
+  background: var(--green);
+  color: #000;
+  font-weight: bold;
+  border-color: var(--green);
+  box-shadow: 0 0 8px rgba(63, 185, 80, 0.6);
+}
+
+.thread-pool-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.thread {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 2px;
+  text-align: center;
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--text-dim);
+  transition: all 0.25s;
+  position: relative;
+}
+
+.thread.busy {
+  background: rgba(63, 185, 80, 0.2);
+  border-color: var(--green);
+  color: var(--green);
+  font-weight: bold;
+}
+
+.thread.queued {
+  background: rgba(210, 153, 34, 0.15);
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.pool-stats {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+}
+
+.pool-stats span { font-family: monospace; }
+.pool-stats .busy-count { color: var(--green); }
+.pool-stats .idle-count { color: var(--text-dim); }
+
+.filter-chain {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.filter {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-family: monospace;
+  transition: all 0.25s;
+}
+
+.filter.active {
+  background: rgba(188, 140, 255, 0.2);
+  border-color: var(--purple);
+  color: var(--purple);
+}
+
+.filter-pattern {
+  font-size: 8px;
+  color: var(--text-dim);
+  margin-left: 5px;
+  font-weight: normal;
+  background: var(--bg);
+  padding: 1px 4px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+
+.filter.skipped {
+  opacity: 0.35;
+  text-decoration: line-through;
+  text-decoration-color: var(--text-dim);
+}
+.filter.skipped .filter-pattern {
+  text-decoration: line-through;
+}
+
+.servlet-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.servlet {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-size: 10px;
+  font-family: monospace;
+  transition: all 0.25s;
+}
+
+.servlet.active {
+  background: rgba(88, 166, 255, 0.18);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 10px rgba(88, 166, 255, 0.3);
+}
+
+.servlet .url-pattern {
+  font-size: 9px;
+  color: var(--text-dim);
+  display: block;
+  margin-top: 2px;
+}
+
+.session-list {
+  font-family: monospace;
+  font-size: 10px;
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+.session-item {
+  background: var(--bg);
+  padding: 4px 6px;
+  border-radius: 3px;
+  margin: 2px 0;
+  color: var(--pink);
+  border-left: 2px solid var(--pink);
+  word-break: break-all;
+}
+
+/* --- Animated Packet --- */
+.packet {
+  position: absolute;
+  width: 115px;
+  height: 42px;
+  border-radius: 5px;
+  font-family: monospace;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  line-height: 1.2;
+  padding: 2px 4px;
+  transition: left 0.6s cubic-bezier(.4,0,.2,1), top 0.6s cubic-bezier(.4,0,.2,1);
+  z-index: 100;
+  box-shadow: 0 0 14px rgba(88, 166, 255, 0.6);
+  pointer-events: none;
+  text-align: center;
+}
+
+.packet .packet-main {
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.3px;
+}
+
+.packet .packet-meta {
+  font-size: 8px;
+  opacity: 0.85;
+  font-weight: normal;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+.packet.req-static { background: var(--green); color: #000; }
+.packet.req-get { background: var(--accent); color: #000; }
+.packet.req-post { background: var(--orange); color: #000; }
+.packet.response { background: var(--text-dim); color: #000; }
+.packet.set-cookie { background: var(--pink); color: #000; box-shadow: 0 0 14px rgba(255, 126, 182, 0.7); }
+.packet.response.error { background: var(--red); color: #fff; box-shadow: 0 0 14px rgba(248, 81, 73, 0.7); }
+.packet.response.error .packet-meta { color: #fff; }
+
+.packet::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 6px;
+  background: inherit;
+  opacity: 0.3;
+  filter: blur(8px);
+  z-index: -1;
+}
+
+/* --- Log --- */
+.log-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.log-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.log-clear {
+  font-size: 11px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.log {
+  background: var(--bg);
+  border-radius: 4px;
+  padding: 10px;
+  height: 220px;
+  overflow-y: auto;
+  font-family: "SF Mono", Monaco, monospace;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.log-entry {
+  padding: 2px 0;
+  border-left: 2px solid transparent;
+  padding-left: 8px;
+  margin-left: -8px;
+  animation: fadeIn 0.3s;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateX(-5px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.log-entry.step-1 { border-left-color: var(--accent); color: var(--accent); }
+.log-entry.step-2 { border-left-color: var(--green); color: var(--green); }
+.log-entry.step-3 { border-left-color: var(--orange); color: var(--orange); }
+.log-entry.step-4 { border-left-color: var(--purple); color: var(--purple); }
+.log-entry.step-5 { border-left-color: var(--pink); color: var(--pink); }
+.log-entry.error { border-left-color: var(--red); color: var(--red); }
+.log-entry .ts { color: var(--text-dim); font-size: 10px; margin-right: 8px; }
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 11px;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+
+/* Connection lines */
+.connection-line {
+  position: absolute;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--border), transparent);
+  top: 50%;
+  z-index: 1;
+}
+
+/* ============== TABS ============== */
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 2px solid var(--border);
+}
+
+.tab {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
+  padding: 10px 22px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 14px;
+  margin-bottom: -2px;
+  font-weight: bold;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.tab:hover { color: var(--text); background: var(--panel-2); }
+
+.tab.active {
+  background: var(--panel-2);
+  color: var(--accent);
+  border-color: var(--accent);
+  border-bottom: 2px solid var(--panel-2);
+}
+
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* 메트릭 row 5칸 */
+.metric-row {
+  grid-template-columns: repeat(5, 1fr) !important;
+}
+
+/* Nginx 패널 - proxy_pass 통과 인디케이터 */
+.nginx-passthrough {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-dim);
+  padding: 30px 0;
+  font-family: monospace;
+  letter-spacing: 4px;
+}
+
+/* 비활성 사용자 아이콘 숨김 (할당된 명수만 표시) */
+.user-icon.dim { display: none; }
+
+/* 슬로우 스레드 펄스 끔 (조용한 화면) */
+.pool-thread.busy-slow { animation: none; }
+
+/* ============== TAB 2: LOAD CONTROLS ============== */
+.load-controls {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px 24px;
+}
+
+.load-controls .control-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.load-controls label {
+  font-size: 11px;
+  color: var(--text-dim);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.load-controls label span {
+  color: var(--accent);
+  font-weight: bold;
+  font-family: monospace;
+  background: var(--panel-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.load-controls input[type=range] { width: 100%; accent-color: var(--accent); }
+
+.load-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.load-actions button {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 18px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.load-actions button:hover { background: var(--border); }
+
+#lc-start { border-left: 3px solid var(--green); }
+#lc-start.running { background: var(--red); border-color: var(--red); color: #fff; }
+#lc-pause-load { border-left: 3px solid var(--orange); }
+#lc-pause-load.paused { background: var(--orange); color: #000; }
+#lc-reset { border-left: 3px solid var(--text-dim); }
+
+.lc-speed-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.lc-speed-label { font-weight: bold; }
+.lc-speed-wrap input[type=range] { width: 120px; accent-color: var(--accent); }
+#lc-speed-val {
+  color: var(--accent);
+  font-weight: bold;
+  font-family: monospace;
+  background: var(--panel-2);
+  padding: 2px 8px;
+  border-radius: 3px;
+  min-width: 42px;
+  text-align: center;
+}
+
+/* ============== TAB 2: STAGE ============== */
+.load-stage {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr 1.6fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  position: relative;
+  min-height: 360px;
+}
+
+.load-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  position: relative;
+}
+
+.load-panel-title {
+  font-weight: bold;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.load-panel-title .badge {
+  font-size: 10px;
+  background: var(--panel-2);
+  padding: 2px 6px;
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-weight: normal;
+  margin-left: auto;
+}
+
+/* Users */
+.users-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.user-icon {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 4px;
+  text-align: center;
+  font-size: 16px;
+  transition: all 0.15s;
+  position: relative;
+  cursor: default;
+  user-select: none;
+}
+
+.user-icon.dim { opacity: 0.2; }
+
+.user-icon.firing {
+  background: rgba(88, 166, 255, 0.3);
+  border-color: var(--accent);
+  transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(88, 166, 255, 0.4);
+}
+
+.user-icon.received {
+  background: rgba(63, 185, 80, 0.25);
+  border-color: var(--green);
+}
+
+.user-icon.rejected {
+  background: rgba(248, 81, 73, 0.3);
+  border-color: var(--red);
+  animation: shake 0.3s;
+}
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+.user-counter {
+  position: absolute;
+  bottom: 1px;
+  right: 3px;
+  font-size: 8px;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.users-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-dim);
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
+.users-legend > div { display: flex; align-items: center; gap: 4px; }
+
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot-blue { background: var(--accent); }
+.dot-green { background: var(--green); }
+.dot-red { background: var(--red); }
+.dot-orange { background: var(--orange); }
+
+/* Nginx */
+.nginx-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nginx-section-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.nginx-workers {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.worker {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 10px;
+  text-align: center;
+  font-size: 11px;
+  font-family: monospace;
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.worker.active {
+  background: rgba(63, 185, 80, 0.25);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.nginx-stat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.nginx-stat b {
+  color: var(--accent);
+  font-size: 18px;
+  font-family: monospace;
+}
+
+.nginx-arrow {
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 4px;
+}
+
+/* Tomcat */
+.tomcat-block { margin-bottom: 12px; }
+
+.tomcat-block-title {
+  font-size: 11px;
+  color: var(--orange);
+  font-weight: bold;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tomcat-block-title .port {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-weight: normal;
+  font-family: monospace;
+}
+
+.tomcat-pool {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+}
+
+.pool-thread {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 8px 2px;
+  text-align: center;
+  font-size: 9px;
+  font-family: monospace;
+  color: var(--text-dim);
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+
+.pool-thread.busy {
+  background: rgba(63, 185, 80, 0.3);
+  border-color: var(--green);
+  color: var(--green);
+  font-weight: bold;
+}
+
+.pool-thread.busy-slow {
+  background: rgba(210, 153, 34, 0.3);
+  border-color: var(--orange);
+  color: var(--orange);
+  font-weight: bold;
+  animation: slowPulse 1.2s ease-in-out infinite;
+}
+
+.pool-thread.busy-fast {
+  background: rgba(88, 166, 255, 0.3);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: bold;
+}
+
+@keyframes slowPulse {
+  0%,100% { box-shadow: 0 0 0 0 rgba(210, 153, 34, 0.4); }
+  50% { box-shadow: 0 0 0 4px rgba(210, 153, 34, 0); }
+}
+
+.tomcat-queue {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 3px;
+  min-height: 22px;
+}
+
+.queue-slot {
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  padding: 4px 2px;
+  text-align: center;
+  font-size: 9px;
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.queue-slot.occupied {
+  background: rgba(255, 126, 182, 0.25);
+  border: 1px solid var(--pink);
+  color: var(--pink);
+  font-weight: bold;
+}
+
+.tomcat-rejected-block {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--red);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.tomcat-rejected-block b {
+  font-family: monospace;
+  font-size: 16px;
+  color: var(--red);
+}
+
+/* Load Particles */
+.load-particle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  z-index: 50;
+  pointer-events: none;
+  box-shadow: 0 0 8px currentColor;
+  transition: none;
+}
+
+.load-particle.fast    { background: var(--accent); color: var(--accent); }
+.load-particle.medium  { background: var(--pink); color: var(--pink); }
+.load-particle.slow    { background: var(--orange); color: var(--orange); }
+.load-particle.response { background: var(--green); color: var(--green); width: 10px; height: 10px; }
+.load-particle.rejected { background: var(--red); color: var(--red); }
+
+/* Metrics */
+.load-metrics {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.metric {
+  background: var(--panel-2);
+  border-radius: 5px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  transition: all 0.2s;
+}
+
+.metric-label {
+  font-size: 9px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--text);
+  font-family: monospace;
+  margin-top: 2px;
+}
+
+.metric.warn { border-left-color: var(--orange); }
+.metric.warn .metric-value { color: var(--orange); }
+.metric.danger { border-left-color: var(--red); }
+.metric.danger .metric-value { color: var(--red); }
+
+.sparkline-wrap {
+  background: var(--panel-2);
+  border-radius: 5px;
+  padding: 10px;
+}
+
+.sparkline-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.sparkline-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.sparkline-block { background: var(--bg); border-radius: 4px; padding: 6px; }
+
+.sparkline-title {
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+  font-family: monospace;
+}
+
+#rps-spark, #lat-spark {
+  width: 100%;
+  height: 60px;
+  display: block;
+}
+
+/* Scenario presets */
+.scenario-presets {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.scenario-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: bold;
+  margin-right: 8px;
+}
+
+.scenario-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.scenario-btn:hover {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Apache + Tomcat 아키텍처 시뮬레이터</h1>
+  <div class="subtitle">정적/동적 요청 분기, GET/POST, Thread Pool, Filter Chain, Session/Cookie 흐름을 시각화합니다</div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="tab1-content">📍 단일 요청 상세</button>
+    <button class="tab" data-tab="tab2-content">📊 동시 부하 시뮬레이션</button>
+  </div>
+
+  <div class="tab-content active" id="tab1-content">
+
+  <div class="controls">
+    <span class="controls-label">정적 요청</span>
+    <button class="static" data-type="static" data-resource="/index.html" data-method="GET">GET /index.html</button>
+    <button class="static" data-type="static" data-resource="/logo.png" data-method="GET">GET /logo.png</button>
+
+    <div class="divider"></div>
+
+    <span class="controls-label">동적 요청</span>
+    <button class="get" data-type="dynamic" data-resource="/login-form" data-method="GET">GET /login-form</button>
+    <button class="post" data-type="dynamic" data-resource="/login" data-method="POST">POST /login</button>
+    <button class="post" data-type="dynamic" data-resource="/api/users" data-method="POST">POST /api/users</button>
+
+    <button id="pause-btn" class="pause-btn">⏸ 일시정지</button>
+    <div class="speed-control">
+      <span>속도</span>
+      <input type="range" id="speed" min="1" max="10" value="5">
+      <span id="speed-val">1.0x</span>
+    </div>
+  </div>
+
+  <div class="stage" id="stage">
+    <!-- Browser -->
+    <div class="panel browser">
+      <div class="panel-title">🌐 Browser <span class="badge">Client</span></div>
+      <div class="browser-screen">
+        <div class="url-bar" id="url-bar">https://app.example.com/</div>
+        <div id="browser-content" class="empty-msg">대기 중...</div>
+      </div>
+      <div class="section">
+        <div class="section-label">🍪 Cookies</div>
+        <div id="cookie-jar">
+          <div class="empty-msg">(쿠키 없음)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Web Server (Apache / Nginx) - 이 서버 전체가 Reverse Proxy 역할 -->
+    <div class="panel apache">
+      <div class="panel-title">🪶 Web Server <span class="badge">Apache / Nginx · :80</span></div>
+      <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px;padding:4px 6px;background:var(--panel-2);border-radius:3px;border-left:2px solid var(--accent)">
+        이 서버 자체가 <b style="color:var(--accent)">Reverse Proxy</b> 역할.<br>아래는 그 역할을 구성하는 내부 모듈들.
+      </div>
+
+      <div class="apache-module" id="ap-listener">
+        <div class="label">📡 Listener (Port 80)</div>
+        <div class="desc">TCP 연결 수락</div>
+      </div>
+
+      <div class="apache-module" id="ap-router">
+        <div class="label">🚦 Request Router</div>
+        <div class="desc">URI 패턴 매칭 → 분기</div>
+      </div>
+
+      <div class="apache-module" id="ap-static">
+        <div class="label">📁 Static Handler</div>
+        <div class="desc">직접 파일 응답</div>
+        <div class="static-files">
+          <div class="static-files-title">DocumentRoot:</div>
+          <div class="file-item">/var/www/index.html</div>
+          <div class="file-item">/var/www/logo.png</div>
+        </div>
+      </div>
+
+      <div class="apache-module" id="ap-proxy">
+        <div class="label">🔗 Proxy Pass</div>
+        <div class="desc">WAS로 포워딩 (디렉티브)<br><span style="color:var(--text-dim);font-size:9px">Apache: mod_proxy_ajp<br>Nginx: proxy_pass</span></div>
+      </div>
+    </div>
+
+    <!-- Tomcat -->
+    <div class="panel tomcat">
+      <div class="panel-title">🐱 Apache Tomcat <span class="badge">Servlet Container</span></div>
+
+      <div class="tomcat-section" id="tc-connector">
+        <div class="tomcat-section-title">① Connector <span class="port">Tomcat I/O</span></div>
+        <div class="buffer-pair">
+          <div class="buffer-box request-buffer">
+            <div class="buffer-label">
+              <span>📥 Request Buffer (in)</span>
+            </div>
+            <div class="buffer-section header-section">
+              <div class="buffer-section-label">Headers</div>
+              <div class="buffer-content" id="req-headers">
+                <span class="empty-msg">(비어있음)</span>
+              </div>
+            </div>
+            <div class="buffer-section body-section">
+              <div class="buffer-section-label">Body</div>
+              <div class="buffer-content" id="req-body">
+                <span class="empty-msg">(비어있음)</span>
+              </div>
+            </div>
+          </div>
+          <div class="buffer-box response-buffer">
+            <div class="buffer-label">
+              <span>📤 Response (out)</span>
+              <span class="commit-status" id="commit-status">uncommitted</span>
+            </div>
+            <div class="buffer-section header-section">
+              <div class="buffer-section-label">Status + Headers <span class="buffer-note">— Response 객체의 Java 필드 (아직 바이트 X)</span></div>
+              <div class="buffer-content" id="res-headers">
+                <span class="empty-msg">(비어있음)</span>
+              </div>
+            </div>
+            <div class="buffer-section body-section">
+              <div class="buffer-section-label">Body Buffer <span class="buffer-note">— byte[8192], 실제 바이트 버퍼</span></div>
+              <div class="buffer-content" id="res-body">
+                <span class="empty-msg">(비어있음)</span>
+              </div>
+            </div>
+            <div class="buffer-note" style="text-align:center;padding-top:4px;border-top:1px dashed var(--border);margin-top:4px">
+              commit 시 → 필드를 HTTP wire format으로 직렬화 → Body 앞에 prepend → 소켓 write
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tomcat-section" id="tc-pool">
+        <div class="tomcat-section-title">② Thread Pool <span class="port">maxThreads=8</span></div>
+        <div class="thread-pool-grid" id="thread-pool">
+          <div class="thread" data-id="0">T0</div>
+          <div class="thread" data-id="1">T1</div>
+          <div class="thread" data-id="2">T2</div>
+          <div class="thread" data-id="3">T3</div>
+          <div class="thread" data-id="4">T4</div>
+          <div class="thread" data-id="5">T5</div>
+          <div class="thread" data-id="6">T6</div>
+          <div class="thread" data-id="7">T7</div>
+        </div>
+        <div class="pool-stats">
+          <span>활성: <span class="busy-count" id="busy-count">0</span></span>
+          <span>대기: <span class="idle-count" id="idle-count">8</span></span>
+        </div>
+      </div>
+
+      <div class="tomcat-section" id="tc-webxml">
+        <div class="tomcat-section-title">③ web.xml + Filter Chain <span class="port">문지기</span></div>
+        <div class="filter-chain" id="filter-chain">
+          <div class="filter" id="f-encoding">EncodingFilter<span class="filter-pattern">/*</span></div>
+          <div class="filter" id="f-auth">AuthFilter<span class="filter-pattern">/api/*</span></div>
+          <div class="filter" id="f-logging">LoggingFilter<span class="filter-pattern">/*</span></div>
+        </div>
+      </div>
+
+      <div class="tomcat-section" id="tc-servlets">
+        <div class="tomcat-section-title">④ Servlets</div>
+        <div class="servlet-list">
+          <div class="servlet" id="s-login">
+            LoginServlet
+            <span class="url-pattern">/login-form (GET) · /login (POST)</span>
+          </div>
+          <div class="servlet" id="s-users">
+            UsersServlet
+            <span class="url-pattern">/api/users (POST)</span>
+          </div>
+          <div class="servlet" id="s-default">
+            DefaultServlet
+            <span class="url-pattern">(fallback)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tomcat-section" id="tc-template">
+        <div class="tomcat-section-title">⑤ Template Engine <span class="port">Mustache / Thymeleaf / Freemarker</span></div>
+        <div class="template-list">
+          <div class="template" id="tmpl-login">
+            <span class="tmpl-name">login.mustache</span>
+            <span class="tmpl-state" id="tmpl-login-state">not compiled</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="tomcat-section" id="tc-session">
+        <div class="tomcat-section-title">⑥ Session Store <span class="port">HttpSession</span></div>
+        <div class="session-list" id="session-list">
+          <div class="empty-msg">(세션 없음)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Animated packets get injected here -->
+    <div id="packet-layer" style="position:absolute; inset:0; pointer-events:none;"></div>
+  </div>
+
+  <div class="log-panel">
+    <div class="log-title">
+      <span>📋 Request Flow Log</span>
+      <button class="log-clear" id="log-clear">Clear</button>
+    </div>
+    <div class="log" id="log">
+      <div class="log-entry"><span class="ts">[00:00:00]</span>시뮬레이터 준비 완료. 위 버튼을 눌러 요청을 보내보세요.</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot" style="background:var(--green)"></span>정적 (Static)</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--accent)"></span>동적 GET</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--orange)"></span>동적 POST</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--purple)"></span>Template Engine</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--pink)"></span>Set-Cookie 응답</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--text-dim)"></span>일반 200 응답</div>
+    <div class="legend-item"><span class="legend-dot" style="background:var(--red)"></span>401 인증실패</div>
+  </div>
+
+  </div> <!-- end tab1-content -->
+
+  <!-- ============ TAB 2: 동시 부하 시뮬레이션 ============ -->
+  <div class="tab-content" id="tab2-content">
+    <div class="subtitle" style="margin-bottom:14px">
+      동시에 여러 사용자가 요청할 때 Thread Pool 포화, 큐 대기, 거부, 레이턴시 악화가 어떻게 일어나는지 시각화합니다
+    </div>
+
+    <!-- Control Panel -->
+    <div class="load-controls">
+      <div class="control-group">
+        <label>👤 동시 사용자 수 <span id="lc-users-val">4</span> 명</label>
+        <input type="range" id="lc-users" min="1" max="20" value="4">
+      </div>
+      <div class="control-group">
+        <label>⏱ 요청 간격 <span id="lc-interval-val">1500</span> ms</label>
+        <input type="range" id="lc-interval" min="200" max="3000" step="100" value="1500">
+      </div>
+      <div class="control-group">
+        <label>⚙️ 평균 처리시간 <span id="lc-proctime-val">500</span> ms</label>
+        <input type="range" id="lc-proctime" min="50" max="2000" step="50" value="500">
+      </div>
+      <div class="control-group">
+        <label>🧵 maxThreads <span id="lc-maxthreads-val">6</span></label>
+        <input type="range" id="lc-maxthreads" min="2" max="16" value="6">
+      </div>
+      <div class="control-group">
+        <label>📥 acceptCount (큐) <span id="lc-queue-val">4</span></label>
+        <input type="range" id="lc-queue" min="0" max="12" value="4">
+      </div>
+      <div class="control-group">
+        <label>🐢 슬로우 쿼리 비율 <span id="lc-slow-val">10</span>%</label>
+        <input type="range" id="lc-slow" min="0" max="50" value="10">
+      </div>
+      <div class="load-actions">
+        <button id="lc-start">▶ 부하 시작</button>
+        <button id="lc-pause-load">⏸ 일시정지</button>
+        <button id="lc-reset">🔄 리셋</button>
+
+        <div class="lc-speed-wrap">
+          <span class="lc-speed-label">⏱ 시뮬레이션 속도</span>
+          <input type="range" id="lc-speed" min="1" max="20" value="3">
+          <span id="lc-speed-val">0.3x</span>
+        </div>
+
+        <div style="margin-left:auto;font-size:11px;color:var(--text-dim)">
+          상태: <span id="lc-status" style="color:var(--text)">정지됨</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stage -->
+    <div class="load-stage" id="load-stage">
+      <!-- Users -->
+      <div class="load-panel users-panel">
+        <div class="load-panel-title">👤 Users <span class="badge"><span id="active-users">0</span>명 활성</span></div>
+        <div class="users-grid" id="users-grid"></div>
+        <div class="users-legend">
+          <div><span class="dot dot-blue"></span>요청 발사</div>
+          <div><span class="dot dot-green"></span>응답 받음</div>
+          <div><span class="dot dot-red"></span>거부됨</div>
+        </div>
+      </div>
+
+      <!-- Web Server (abstracted) -->
+      <div class="load-panel nginx-panel">
+        <div class="load-panel-title">🪶 Web Server <span class="badge">Nginx</span></div>
+        <div class="nginx-body">
+          <div class="nginx-passthrough">⇣ proxy_pass ⇣</div>
+          <div class="nginx-stat">
+            <span>처리량</span><b id="nginx-rps">0</b><span>req/s</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tomcat -->
+      <div class="load-panel tomcat-panel">
+        <div class="load-panel-title">🐱 Tomcat</div>
+
+        <div class="tomcat-block">
+          <div class="tomcat-block-title">Thread Pool <span class="port"><span id="m-threads-inline">0</span> / <span id="m-maxthreads-inline">6</span></span></div>
+          <div class="tomcat-pool" id="tomcat-pool"></div>
+        </div>
+
+        <div class="tomcat-block">
+          <div class="tomcat-block-title">📥 Queue (acceptCount) <span class="port"><span id="m-queue-inline">0</span> / <span id="m-queuesize-inline">4</span></span></div>
+          <div class="tomcat-queue" id="tomcat-queue"></div>
+        </div>
+
+        <div class="tomcat-rejected-block">
+          <span>❌ Connection Refused</span>
+          <b id="rejected-count">0</b>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Metrics Dashboard -->
+    <div class="load-metrics">
+      <div class="metric-row">
+        <div class="metric" id="metric-rps">
+          <div class="metric-label">RPS (처리량)</div>
+          <div class="metric-value" id="m-rps">0.0</div>
+        </div>
+        <div class="metric" id="metric-active">
+          <div class="metric-label">활성 스레드</div>
+          <div class="metric-value" id="m-threads">0 / 6</div>
+        </div>
+        <div class="metric" id="metric-queue">
+          <div class="metric-label">큐 점유</div>
+          <div class="metric-value" id="m-queue">0 / 4</div>
+        </div>
+        <div class="metric" id="metric-rejected">
+          <div class="metric-label">거부</div>
+          <div class="metric-value" id="m-rejected">0</div>
+        </div>
+        <div class="metric" id="metric-p95">
+          <div class="metric-label">p95 latency</div>
+          <div class="metric-value" id="m-p95">--</div>
+        </div>
+      </div>
+      <div class="sparkline-wrap">
+        <div class="sparkline-label">📈 최근 30초 RPS</div>
+        <canvas id="rps-spark" width="600" height="60"></canvas>
+      </div>
+    </div>
+
+    <!-- Scenario presets -->
+    <div class="scenario-presets">
+      <div class="scenario-label">시나리오 프리셋:</div>
+      <button class="scenario-btn" data-preset="normal">여유 (4 users)</button>
+      <button class="scenario-btn" data-preset="saturate">포화 직전 (8 users, 6 threads)</button>
+      <button class="scenario-btn" data-preset="queue">큐 대기 발생 (12 users)</button>
+      <button class="scenario-btn" data-preset="refuse">거부 폭주 (20 users, 2 threads)</button>
+      <button class="scenario-btn" data-preset="slow">슬로우 쿼리 (12 users, 30% slow)</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// =================== STATE ===================
+const state = {
+  cookies: {},          // { JSESSIONID: 'abc123' }
+  sessions: {},         // { abc123: { user: 'kim', loginTime: ... } }
+  threads: new Array(8).fill(null),  // null=idle, {reqId} if busy
+  reqCounter: 0,
+  speed: 1.0,
+  isBusy: false,
+  isPaused: false,
+  pauseWaiters: [],
+  templates: {
+    'login.mustache': { compiled: false },
+  },
+};
+
+// =================== UTILS ===================
+const $ = (id) => document.getElementById(id);
+
+function checkPause() {
+  if (!state.isPaused) return Promise.resolve();
+  return new Promise(resolve => state.pauseWaiters.push(resolve));
+}
+
+async function sleep(ms) {
+  await checkPause();
+  return new Promise(r => setTimeout(r, ms / state.speed));
+}
+
+function togglePause() {
+  state.isPaused = !state.isPaused;
+  const btn = $('pause-btn');
+  if (state.isPaused) {
+    btn.innerHTML = '▶ 재개';
+    btn.classList.add('paused');
+    log(`⏸ 애니메이션 일시정지`, '1');
+  } else {
+    btn.innerHTML = '⏸ 일시정지';
+    btn.classList.remove('paused');
+    state.pauseWaiters.forEach(r => r());
+    state.pauseWaiters = [];
+    log(`▶ 애니메이션 재개`, '1');
+  }
+}
+
+function now() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`;
+}
+
+function log(msg, step) {
+  const div = document.createElement('div');
+  div.className = `log-entry step-${step || ''}`;
+  div.innerHTML = `<span class="ts">[${now()}]</span>${msg}`;
+  const logEl = $('log');
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+function highlight(el, dur = 800) {
+  if (!el) return;
+  el.classList.add('active');
+  setTimeout(() => el.classList.remove('active'), dur / state.speed);
+}
+
+function generateSessionId() {
+  return Array.from({length: 16}, () => Math.floor(Math.random()*16).toString(16)).join('').toUpperCase();
+}
+
+// =================== UI UPDATERS ===================
+function updateCookieJar() {
+  const el = $('cookie-jar');
+  const keys = Object.keys(state.cookies);
+  if (keys.length === 0) {
+    el.innerHTML = '<div class="empty-msg">(쿠키 없음)</div>';
+  } else {
+    el.innerHTML = keys.map(k =>
+      `<div class="cookie-item">${k}=${state.cookies[k].substring(0,16)}${state.cookies[k].length>16?'...':''}</div>`
+    ).join('');
+  }
+}
+
+function updateSessionList() {
+  const el = $('session-list');
+  const keys = Object.keys(state.sessions);
+  if (keys.length === 0) {
+    el.innerHTML = '<div class="empty-msg">(세션 없음)</div>';
+  } else {
+    el.innerHTML = keys.map(k => {
+      const s = state.sessions[k];
+      return `<div class="session-item">${k.substring(0,12)}... → user=${s.user||'guest'}</div>`;
+    }).join('');
+  }
+}
+
+function updateThreadPool() {
+  const busy = state.threads.filter(t => t !== null).length;
+  $('busy-count').textContent = busy;
+  $('idle-count').textContent = 8 - busy;
+  state.threads.forEach((t, i) => {
+    const el = document.querySelector(`.thread[data-id="${i}"]`);
+    el.classList.toggle('busy', t !== null);
+  });
+}
+
+function allocThread(reqId) {
+  const idx = state.threads.findIndex(t => t === null);
+  if (idx === -1) return -1;
+  state.threads[idx] = reqId;
+  updateThreadPool();
+  return idx;
+}
+
+function releaseThread(idx) {
+  state.threads[idx] = null;
+  updateThreadPool();
+}
+
+// ===== Request Buffer =====
+function setReqHeaders(method, resource, cookies) {
+  const lines = [
+    `<span class="line">${method} ${resource} HTTP/1.1</span>`,
+    `<span class="line">Host: app.example.com</span>`,
+    `<span class="line">Accept: */*</span>`,
+  ];
+  if (Object.keys(cookies).length > 0) {
+    const ck = Object.entries(cookies).map(([k,v]) => `${k}=${v.substring(0,8)}...`).join('; ');
+    lines.push(`<span class="line cookie">Cookie: ${ck}</span>`);
+  }
+  $('req-headers').innerHTML = lines.join('');
+}
+
+function setReqBody(body) {
+  if (body) {
+    $('req-body').innerHTML = `<span class="line">${body}</span>`;
+  } else {
+    $('req-body').innerHTML = `<span class="empty-msg">(없음 — GET은 body 없음)</span>`;
+  }
+}
+
+function clearReqBuffer() {
+  $('req-headers').innerHTML = '<span class="empty-msg">(비어있음)</span>';
+  $('req-body').innerHTML = '<span class="empty-msg">(비어있음)</span>';
+}
+
+// ===== Response Fields (Java 필드, 미직렬화) =====
+function setResHeaders(status, contentType, setCookieValue) {
+  // 키: 값 형태로 표시 — Java Response 객체의 필드처럼
+  const lines = [
+    `<span class="line status"><span class="header-key">status:</span> ${status}</span>`,
+    `<span class="line"><span class="header-key">Content-Type:</span> ${contentType}</span>`,
+  ];
+  if (setCookieValue) {
+    lines.push(`<span class="line cookie"><span class="header-key">Set-Cookie:</span> JSESSIONID=${setCookieValue.substring(0,12)}...; HttpOnly</span>`);
+  }
+  $('res-headers').innerHTML = lines.join('');
+}
+
+function setResBody(content) {
+  $('res-body').innerHTML = `<span class="line">${content}</span>`;
+}
+
+function clearResBuffer() {
+  $('res-headers').innerHTML = '<span class="empty-msg">(비어있음)</span>';
+  $('res-body').innerHTML = '<span class="empty-msg">(비어있음)</span>';
+  $('commit-status').classList.remove('committed');
+  $('commit-status').textContent = 'uncommitted';
+}
+
+function markCommitted() {
+  $('commit-status').classList.add('committed');
+  $('commit-status').textContent = 'COMMITTED';
+}
+
+function updateBrowserScreen(method, resource, status, content) {
+  $('url-bar').textContent = `https://app.example.com${resource}`;
+  if (content) {
+    $('browser-content').innerHTML = `<div style="color:var(--green);font-size:10px">${status}</div><div style="margin-top:4px">${content}</div>`;
+  }
+}
+
+// =================== PACKET ANIMATION ===================
+function createPacket(label, cls, meta) {
+  const p = document.createElement('div');
+  p.className = `packet ${cls}`;
+  p.innerHTML = `<div class="packet-main">${label}</div>${meta ? `<div class="packet-meta">${meta}</div>` : ''}`;
+  $('packet-layer').appendChild(p);
+  return p;
+}
+
+function getCenter(el) {
+  const stageRect = $('stage').getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return {
+    x: r.left - stageRect.left + r.width/2 - 57,
+    y: r.top - stageRect.top + r.height/2 - 21,
+  };
+}
+
+async function moveTo(packet, targetEl, dwell = 400) {
+  const c = getCenter(targetEl);
+  packet.style.left = c.x + 'px';
+  packet.style.top = c.y + 'px';
+  await sleep(700);  // wait for transition
+  await sleep(dwell);
+}
+
+async function moveAlong(packet, els, dwell = 400) {
+  for (const el of els) {
+    await moveTo(packet, el, dwell);
+  }
+}
+
+function destroyPacket(packet) {
+  packet.style.opacity = '0';
+  setTimeout(() => packet.remove(), 300);
+}
+
+// =================== REQUEST HANDLERS ===================
+async function handleRequest(type, resource, method) {
+  if (state.isBusy) return;
+  state.isBusy = true;
+  setButtonsDisabled(true);
+
+  const reqId = ++state.reqCounter;
+  log(`━━━ Request #${reqId}: <b>${method} ${resource}</b> ━━━`, '1');
+
+  // Stage 1: Browser sends request
+  log(`① Browser → HTTP Request 생성 (Method=${method}, URI=${resource})`, '1');
+  log(`   기존 쿠키 자동 첨부: ${Object.keys(state.cookies).length>0 ? Object.entries(state.cookies).map(([k,v])=>k+'='+v.substring(0,8)+'...').join('; ') : '(없음)'}`, '1');
+
+  const packetCls = type === 'static' ? 'req-static' :
+                    method === 'POST' ? 'req-post' : 'req-get';
+  const carriedSid = state.cookies.JSESSIONID || '';
+  const reqMeta = carriedSid ? `🍪 ${carriedSid.substring(0,10)}...` : '';
+  const packet = createPacket(method, packetCls, reqMeta);
+  // Start at browser
+  const browserEl = document.querySelector('.panel.browser');
+  await moveTo(packet, browserEl, 200);
+
+  // Stage 2: Apache receives
+  log(`② Apache HTTP Server (포트 80) 가 요청 수신`, '2');
+  highlight($('ap-listener'));
+  await moveTo(packet, $('ap-listener'), 400);
+
+  highlight($('ap-router'));
+  await moveTo(packet, $('ap-router'), 400);
+  log(`   Request Router: URI 패턴 분석 → ${type === 'static' ? '정적 리소스' : '동적 리소스 (Tomcat으로 전달)'}`, '2');
+
+  if (type === 'static') {
+    // ===== STATIC PATH =====
+    highlight($('ap-static'));
+    await moveTo(packet, $('ap-static'), 600);
+    log(`   📁 Static Handler: DocumentRoot에서 파일 읽기 → ${resource}`, '2');
+    log(`   ✓ Tomcat 거치지 않고 바로 응답 (빠름)`, '2');
+
+    // Response (정적 — 세션 무관)
+    const respPacket = createPacket('200 OK', 'response', getMimeType(resource));
+    const apEl = $('ap-static');
+    const c = getCenter(apEl);
+    respPacket.style.left = c.x + 'px';
+    respPacket.style.top = c.y + 'px';
+    await sleep(50);
+
+    destroyPacket(packet);
+    await moveTo(respPacket, browserEl, 300);
+    log(`⑥ Browser ← 200 OK (${getMimeType(resource)})`, '5');
+    updateBrowserScreen(method, resource, '200 OK · ' + getMimeType(resource), renderStaticContent(resource));
+    destroyPacket(respPacket);
+
+  } else {
+    // ===== DYNAMIC PATH =====
+    highlight($('ap-proxy'));
+    await moveTo(packet, $('ap-proxy'), 400);
+    log(`   🔗 Proxy Pass: 매칭된 백엔드(WAS)로 포워딩 (mod_proxy_ajp / nginx proxy_pass)`, '2');
+
+    // Enter Tomcat Connector — Acceptor + Poller가 소켓만 받음 (worker 스레드 아직 X)
+    log(`③ Tomcat Connector — Acceptor가 TCP 소켓 accept, Poller가 데이터 도착 감지`, '3');
+    log(`      이 단계까진 worker 스레드 미할당 (NIO 모델)`, '3');
+    highlight($('tc-connector'));
+    await moveTo(packet, $('tc-connector'), 300);
+
+    // Thread Pool — Worker 할당이 먼저 일어남
+    log(`④ Thread Pool에서 Worker 스레드 할당 — 이제부터 모든 처리는 이 worker가 담당`, '3');
+    highlight($('tc-pool'), 1500);
+    const threadIdx = allocThread(reqId);
+    if (threadIdx === -1) {
+      log(`   ❌ 모든 스레드 사용 중! 큐에 대기 (acceptCount)`, 'error');
+      state.isBusy = false;
+      setButtonsDisabled(false);
+      return;
+    }
+    log(`   ✓ Worker T${threadIdx} 할당됨`, '3');
+    await moveTo(packet, $('tc-pool'), 500);
+
+    // Worker가 직접 소켓에서 바이트 읽어 Request Buffer 채움
+    log(`   📥 Worker T${threadIdx}가 소켓에서 바이트 read → Request Buffer 적재 + 파싱`, '3');
+    setReqHeaders(method, resource, state.cookies);
+    await sleep(400);
+    if (method === 'POST') {
+      setReqBody('username=admin&password=****');
+      log(`      Body 영역도 파싱 (POST payload)`, '3');
+      await sleep(400);
+    } else {
+      setReqBody(null);
+    }
+
+    // web.xml + Filter chain
+    log(`⑤ web.xml 문지기: URL 패턴 매칭 시작`, '4');
+    highlight($('tc-webxml'));
+    await moveTo(packet, $('tc-webxml'), 300);
+
+    // Filter chain — 각 필터가 자기 url-pattern으로 매칭되는 요청에만 적용됨
+    const sidInCookie = state.cookies.JSESSIONID;
+    const sessionValid = sidInCookie && state.sessions[sidInCookie];
+
+    const matchesPattern = (uri, pattern) => {
+      if (pattern === '/*') return true;
+      if (pattern.endsWith('/*')) return uri.startsWith(pattern.slice(0, -2) + '/') || uri === pattern.slice(0, -2);
+      return uri === pattern;
+    };
+
+    const filterDefs = [
+      { id: 'f-encoding', name: 'EncodingFilter', pattern: '/*', desc: 'UTF-8 강제' },
+      { id: 'f-auth',     name: 'AuthFilter',     pattern: '/api/*', desc: '세션 인증 검사' },
+      { id: 'f-logging',  name: 'LoggingFilter',  pattern: '/*', desc: '요청/응답 기록' },
+    ];
+
+    for (const f of filterDefs) {
+      const applies = matchesPattern(resource, f.pattern);
+      if (!applies) {
+        // url-pattern 매칭 안 됨 → 스킵
+        log(`   ${f.name} 스킵 — url-pattern <code>${f.pattern}</code> 매칭 X (${resource})`, '4');
+        const el = $(f.id);
+        if (el) {
+          el.classList.add('skipped');
+          setTimeout(() => el.classList.remove('skipped'), 1500 / state.speed);
+        }
+        await sleep(180);
+        continue;
+      }
+
+      highlight($(f.id), 400);
+      log(`   ${f.name} 통과 (${f.pattern} 매칭, ${f.desc})`, '4');
+
+      // AuthFilter는 통과되면서 세션 검사
+      if (f.id === 'f-auth') {
+        if (!sessionValid) {
+          // ===== 401 단축 경로 =====
+          log(`   🚫 AuthFilter: 세션 쿠키 없음/무효 → 401 즉시 반환`, 'error');
+          log(`      → Servlet/Template/비즈니스 로직 모두 미실행`, 'error');
+          highlight($(f.id), 2000);
+          await sleep(500);
+
+          setResHeaders('401 Unauthorized', 'application/json', null);
+          setResBody('{"error":"Authentication required, please login first"}');
+          await sleep(400);
+          markCommitted();
+          log(`   ✅ Response committed (401) — 헤더 직렬화 → 소켓 write`, '5');
+          await sleep(300);
+
+          const respPacket401 = createPacket('401', 'response error', 'Unauthorized');
+          const fc = getCenter($('tc-webxml'));
+          respPacket401.style.left = fc.x + 'px';
+          respPacket401.style.top = fc.y + 'px';
+          await sleep(50);
+          destroyPacket(packet);
+
+          log(`   ✓ Thread T${threadIdx} 작업 완료 → Thread Pool에 반환 (idle)`, '5');
+          releaseThread(threadIdx);
+
+          await moveTo(respPacket401, $('tc-connector'), 200);
+          await moveTo(respPacket401, $('ap-proxy'), 250);
+          await moveTo(respPacket401, browserEl, 300);
+
+          updateBrowserScreen(method, resource, '401 Unauthorized',
+            '<span style="color:var(--red)">접근 거부 — 로그인 후 다시 시도</span>');
+          destroyPacket(respPacket401);
+
+          await sleep(400);
+          clearReqBuffer();
+          clearResBuffer();
+
+          log(`━━━ Request #${reqId} 거부 (401 Unauthorized) ━━━`, 'error');
+          state.isBusy = false;
+          setButtonsDisabled(false);
+          return;
+        }
+        log(`      → 유효 세션 확인`, '4');
+      }
+
+      await sleep(220);
+    }
+
+    // Identify servlet
+    const servletId = resolveServlet(resource);
+    const servletName = {
+      's-login': 'LoginServlet',
+      's-users': 'UsersServlet',
+      's-default': 'DefaultServlet',
+    }[servletId];
+    log(`   매칭된 서블릿: <b>${servletName}</b>`, '4');
+
+    // Servlet execution
+    highlight($('tc-servlets'));
+    highlight($(servletId), 1200);
+    await moveTo(packet, $(servletId), 600);
+    log(`⑥ Servlet 실행: service() → ${method === 'POST' ? 'doPost()' : 'doGet()'}`, '4');
+
+    if (method === 'POST') {
+      log(`   📦 Request Body 파싱: username=admin, password=****`, '4');
+    } else {
+      log(`   🔍 Query String 파싱: (없음)`, '4');
+    }
+
+    // Session handling — 서버 사이드에서만 처리 (브라우저 쿠키는 응답 도착 후에)
+    log(`⑦ Session 처리 (서버 사이드)`, '5');
+    highlight($('tc-session'));
+    let sid = state.cookies.JSESSIONID;     // 클라이언트가 보낸 쿠키에 들어있던 SID
+    let pendingSetCookie = null;            // 응답에 실어 보낼 Set-Cookie 헤더 (아직 브라우저엔 X)
+    let responseUser = 'guest';
+
+    if (resource === '/login' && method === 'POST') {
+      // 실제 로그인: 무조건 새 세션 발급 (Session Fixation 방지 차원)
+      if (sid && state.sessions[sid]) {
+        delete state.sessions[sid];
+        log(`   기존 세션 무효화 (invalidate)`, '5');
+      }
+      sid = generateSessionId();
+      state.sessions[sid] = { user: 'admin', loginTime: new Date().toISOString() };
+      pendingSetCookie = { JSESSIONID: sid };
+      responseUser = 'admin';
+      updateSessionList();  // 서버 스토어는 즉시 반영 (Tomcat 메모리)
+      log(`   🆕 서버 Session Store에 세션 저장: JSESSIONID=${sid.substring(0,12)}...`, '5');
+      log(`   📤 응답 헤더에 Set-Cookie: JSESSIONID=... 추가 예정`, '5');
+      log(`   ⚠️ 브라우저 쿠키는 아직 저장 안 됨 — 응답이 도착해야 저장`, '5');
+    } else if (resource === '/login-form' && method === 'GET') {
+      log(`   세션 생성/조회 없음 (단순 로그인 폼 HTML 응답)`, '5');
+    } else {
+      // 그 외 동적 요청: 기존 세션이 있으면 사용
+      if (sid && state.sessions[sid]) {
+        responseUser = state.sessions[sid].user;
+        log(`   ✓ 기존 세션 사용 (JSESSIONID=${sid.substring(0,12)}...) → user=${responseUser}`, '5');
+      } else {
+        log(`   ⚠️ 세션 없음 → guest로 처리 (실제론 AuthFilter가 401/redirect 가능)`, '5');
+      }
+    }
+
+    // Business logic
+    await sleep(300);
+    log(`   💼 비즈니스 로직 실행 (DB 조회, 계산 등...)`, '4');
+    await sleep(200);
+
+    // ===== Template Engine 호출 (해당 자원만) =====
+    const tmplMap = {
+      '/login-form': 'login.mustache',
+    };
+    const tmplName = tmplMap[resource];
+    if (tmplName && method === 'GET') {
+      log(`   🎨 Template Engine 호출: ${tmplName}`, '4');
+      highlight($('tc-template'));
+      const tmplKey = tmplName.replace('.mustache', '');
+      const tmplEl = $(`tmpl-${tmplKey}`);
+      const tmplStateEl = $(`tmpl-${tmplKey}-state`);
+      if (tmplEl) highlight(tmplEl, 1500);
+      if (!state.templates[tmplName].compiled) {
+        log(`      ⚙️ 캐시 미스: ${tmplName} 파싱 → 내부표현 컴파일 → 캐시 저장`, '4');
+        await sleep(700);
+        state.templates[tmplName].compiled = true;
+        if (tmplStateEl) {
+          tmplStateEl.textContent = 'compiled';
+          tmplStateEl.classList.add('compiled');
+        }
+      } else {
+        log(`      ✓ 캐시 히트: 컴파일된 ${tmplName} 재사용`, '4');
+      }
+      await sleep(300);
+      log(`      📄 데이터 모델 바인딩 → HTML 문자열 생성`, '4');
+      await sleep(200);
+    }
+
+    // ===== Response Buffer 작성 (아직 클라이언트로 전송 X) =====
+    const respContent = renderDynamicContent(resource, method, responseUser);
+    const setCookieVal = pendingSetCookie ? pendingSetCookie.JSESSIONID : null;
+
+    log(`⑧ Response 작성 (아직 uncommitted)`, '5');
+    highlight($('tc-connector'));
+    setResHeaders('200 OK', 'text/html', setCookieVal);
+    log(`   📤 Response 객체 필드 세팅: status / Content-Type${setCookieVal ? ' / Set-Cookie' : ''}`, '5');
+    log(`      ⚠️ 아직 바이트 X — Java 필드 형태로만 들고 있음`, '5');
+    await sleep(500);
+
+    setResBody(respContent);
+    log(`   📤 Body Buffer (byte[8192])에 응답 본문 적재 — response.getWriter().write(...)`, '5');
+    log(`      ⚠️ 아직 commit 전 — setStatus(), setHeader() 변경 가능`, '5');
+    await sleep(500);
+
+    // ===== Commit =====
+    markCommitted();
+    log(`   ✅ flushBuffer() 또는 버퍼 가득참 → committed 전환`, '5');
+    log(`      Status + Headers를 HTTP/1.1 wire format으로 직렬화 → Body 앞에 prepend → 소켓 write`, '5');
+    log(`      이제부터 헤더/상태코드 변경 불가`, '5');
+    await sleep(400);
+
+    // ===== Response 패킷이 Connector → Reverse Proxy → Browser로 =====
+    // 패킷 meta: Set-Cookie면 새 세션키, 아니면 기존 세션키, 둘 다 없으면 비어있음
+    let respMeta;
+    if (pendingSetCookie) {
+      respMeta = `🍪 Set: ${pendingSetCookie.JSESSIONID.substring(0,10)}...`;
+    } else if (sidInCookie && state.sessions[sidInCookie]) {
+      respMeta = `sid: ${sidInCookie.substring(0,10)}...`;
+    } else {
+      respMeta = '';
+    }
+    const respPacket = createPacket('200 OK',
+                                    pendingSetCookie ? 'response set-cookie' : 'response',
+                                    respMeta);
+    const sc = getCenter($('tc-connector'));
+    respPacket.style.left = sc.x + 'px';
+    respPacket.style.top = sc.y + 'px';
+    await sleep(50);
+
+    destroyPacket(packet);
+
+    log(`   ✓ Thread T${threadIdx} 작업 완료 → Thread Pool에 반환 (idle)`, '5');
+    releaseThread(threadIdx);
+
+    await moveTo(respPacket, $('ap-proxy'), 300);
+    await moveTo(respPacket, browserEl, 300);
+
+    // ✅ 응답이 브라우저에 도착한 시점 — 이제서야 Set-Cookie가 쿠키 저장소에 반영됨
+    if (pendingSetCookie) {
+      Object.assign(state.cookies, pendingSetCookie);
+      updateCookieJar();
+      log(`   🍪 Browser: 응답의 Set-Cookie 헤더 발견 → 쿠키 저장소에 JSESSIONID 추가`, '5');
+    }
+
+    updateBrowserScreen(method, resource, '200 OK · text/html', respContent);
+    destroyPacket(respPacket);
+
+    // 버퍼 정리 (다음 요청 위해)
+    await sleep(400);
+    clearReqBuffer();
+    clearResBuffer();
+  }
+
+  log(`━━━ Request #${reqId} 완료 ━━━`, '5');
+  state.isBusy = false;
+  setButtonsDisabled(false);
+}
+
+function resolveServlet(resource) {
+  if (resource === '/login' || resource === '/login-form') return 's-login';
+  if (resource === '/api/users') return 's-users';
+  return 's-default';
+}
+
+function getMimeType(resource) {
+  if (resource.endsWith('.html')) return 'text/html';
+  if (resource.endsWith('.css')) return 'text/css';
+  if (resource.endsWith('.png')) return 'image/png';
+  if (resource.endsWith('.js')) return 'application/javascript';
+  return 'application/octet-stream';
+}
+
+function renderStaticContent(resource) {
+  if (resource.endsWith('.html')) return '<i>&lt;html&gt;...&lt;/html&gt;</i>';
+  if (resource.endsWith('.css')) return '<i>body { ... }</i>';
+  if (resource.endsWith('.png')) return '<i>[image bytes]</i>';
+  return '...';
+}
+
+function renderDynamicContent(resource, method, user) {
+  if (resource === '/login' && method === 'POST') return `<b>Login OK</b> · user=${user}`;
+  if (resource === '/login-form') return '<i>&lt;form method="POST" action="/login"&gt;...&lt;/form&gt;</i>';
+  if (resource === '/api/users') return `<i>{ "created": true }</i>`;
+  return 'OK';
+}
+
+function setButtonsDisabled(disabled) {
+  // pause-btn은 항상 활성화 (애니메이션 중에도 일시정지 가능해야 함)
+  document.querySelectorAll('.controls button:not(#pause-btn)').forEach(b => b.disabled = disabled);
+}
+
+// =================== INIT ===================
+document.querySelectorAll('.controls button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    handleRequest(btn.dataset.type, btn.dataset.resource, btn.dataset.method);
+  });
+});
+
+$('speed').addEventListener('input', (e) => {
+  state.speed = parseInt(e.target.value) / 5;
+  $('speed-val').textContent = state.speed.toFixed(1) + 'x';
+});
+
+$('pause-btn').addEventListener('click', togglePause);
+
+// 스페이스 키로도 일시정지/재개
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+    e.preventDefault();
+    togglePause();
+  }
+});
+
+$('log-clear').addEventListener('click', () => {
+  $('log').innerHTML = '';
+  log('로그 클리어됨.', '1');
+});
+
+updateThreadPool();
+updateCookieJar();
+updateSessionList();
+
+// ============================================================
+// =================== TAB SWITCHING ==========================
+// ============================================================
+document.querySelectorAll('.tab').forEach(tabBtn => {
+  tabBtn.addEventListener('click', () => {
+    const target = tabBtn.dataset.tab;
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === tabBtn));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === target));
+    if (target === 'tab2-content' && !load.initialized) {
+      initLoadSim();
+      load.initialized = true;
+    }
+  });
+});
+
+// ============================================================
+// =================== TAB 2: LOAD SIMULATOR ==================
+// ============================================================
+const load = {
+  initialized: false,
+  // Config (mirrors sliders)
+  numUsers: 4,
+  interval: 1500,
+  procTime: 500,
+  maxThreads: 6,
+  queueSize: 4,
+  slowRatio: 0.10,
+
+  // Runtime state
+  running: false,
+  paused: false,
+  speed: 0.3,           // 시뮬레이션 속도 배율 (1.0 = realtime, 0.1 = 10배 느리게)
+  simNow: 0,            // 시뮬레이션 내부 시계 (속도에 따라 advance)
+  users: [],
+  threads: [],
+  queue: [],
+  rafId: null,
+  lastTick: 0,
+  reqIdSeq: 0,
+
+  // Metrics
+  totalProcessed: 0,
+  totalRejected: 0,
+  latencies: [],         // recent response times for percentile calc
+  rpsBuckets: [],        // {sec, count}
+  p95Buckets: [],        // {sec, p95}
+};
+
+function initLoadSim() {
+  // Build user grid (max 20)
+  const grid = $('users-grid');
+  grid.innerHTML = '';
+  for (let i = 0; i < 20; i++) {
+    const div = document.createElement('div');
+    div.className = 'user-icon';
+    div.dataset.userId = i;
+    div.innerHTML = `👤<div class="user-counter" data-counter="0">0</div>`;
+    grid.appendChild(div);
+  }
+  rebuildThreadPool();
+  rebuildQueue();
+  updateUserGridVisibility();
+  updateLoadMetricsUI();
+  drawSparkline();
+}
+
+function rebuildThreadPool() {
+  const pool = $('tomcat-pool');
+  pool.innerHTML = '';
+  for (let i = 0; i < load.maxThreads; i++) {
+    const div = document.createElement('div');
+    div.className = 'pool-thread';
+    div.dataset.threadId = i;
+    div.textContent = `T${i}`;
+    pool.appendChild(div);
+  }
+  load.threads = new Array(load.maxThreads).fill(null);
+  $('m-maxthreads-inline').textContent = load.maxThreads;
+}
+
+function rebuildQueue() {
+  const queue = $('tomcat-queue');
+  queue.innerHTML = '';
+  for (let i = 0; i < load.queueSize; i++) {
+    const div = document.createElement('div');
+    div.className = 'queue-slot';
+    div.dataset.queueId = i;
+    div.textContent = i;
+    queue.appendChild(div);
+  }
+  load.queue = [];
+  $('m-queuesize-inline').textContent = load.queueSize;
+}
+
+function updateUserGridVisibility() {
+  document.querySelectorAll('.user-icon').forEach((el, i) => {
+    el.classList.toggle('dim', i >= load.numUsers);
+  });
+  $('active-users').textContent = load.numUsers;
+}
+
+function startLoadSim() {
+  if (load.running) {
+    stopLoadSim();
+    return;
+  }
+  load.running = true;
+  load.paused = false;
+  load.lastTick = performance.now();
+  load.simNow = 0;  // 시뮬레이션 시계는 0부터 시작
+
+  // Init users with staggered start times (sim time 기준)
+  load.users = [];
+  for (let i = 0; i < load.numUsers; i++) {
+    load.users.push({
+      id: i,
+      lastEmit: Math.random() * load.interval,  // 0 ~ interval 사이 랜덤 (sim time)
+      received: 0,
+    });
+  }
+
+  $('lc-start').classList.add('running');
+  $('lc-start').textContent = '⏹ 부하 정지';
+  $('lc-status').textContent = '실행 중';
+  $('lc-status').style.color = 'var(--green)';
+
+  load.rafId = requestAnimationFrame(tickLoadSim);
+}
+
+function stopLoadSim() {
+  load.running = false;
+  if (load.rafId) cancelAnimationFrame(load.rafId);
+  load.rafId = null;
+  $('lc-start').classList.remove('running');
+  $('lc-start').textContent = '▶ 부하 시작';
+  $('lc-status').textContent = '정지됨';
+  $('lc-status').style.color = 'var(--text)';
+}
+
+function pauseLoadSim() {
+  load.paused = !load.paused;
+  $('lc-pause-load').classList.toggle('paused', load.paused);
+  $('lc-pause-load').textContent = load.paused ? '▶ 재개' : '⏸ 일시정지';
+  $('lc-status').textContent = load.paused ? '일시정지' : (load.running ? '실행 중' : '정지됨');
+  $('lc-status').style.color = load.paused ? 'var(--orange)' : (load.running ? 'var(--green)' : 'var(--text)');
+}
+
+function resetLoadSim() {
+  stopLoadSim();
+  load.totalProcessed = 0;
+  load.totalRejected = 0;
+  load.latencies = [];
+  load.rpsBuckets = [];
+  load.p95Buckets = [];
+  load.reqIdSeq = 0;
+  load.simNow = 0;
+  load.lastMetricUpdate = 0;
+  rebuildThreadPool();
+  rebuildQueue();
+  document.querySelectorAll('.user-icon').forEach(el => {
+    el.querySelector('.user-counter').textContent = '0';
+    el.querySelector('.user-counter').dataset.counter = '0';
+    el.classList.remove('firing', 'received', 'rejected');
+  });
+  document.querySelectorAll('.worker').forEach(el => el.classList.remove('active'));
+  updateLoadMetricsUI();
+  drawSparkline();
+}
+
+function tickLoadSim(realNow) {
+  if (!load.running) return;
+
+  if (!load.paused) {
+    // 실제 경과 시간을 speed 배율로 스케일 → 시뮬레이션 시간
+    const realDt = realNow - load.lastTick;
+    const simDt = realDt * load.speed;
+    load.simNow += simDt;
+    const now = load.simNow;  // 이후 모든 로직은 sim time 사용
+
+    // 1. Users emit requests
+    for (const user of load.users) {
+      if (now >= user.lastEmit) {
+        emitLoadRequest(user, now);
+        const jitter = (Math.random() - 0.5) * load.interval * 0.4;
+        user.lastEmit = now + load.interval + jitter;
+      }
+    }
+
+    // 2. Complete threads that are done
+    for (let i = 0; i < load.threads.length; i++) {
+      const t = load.threads[i];
+      if (t && now >= t.busyUntil) {
+        completeLoadRequest(t, i, now);
+        load.threads[i] = null;
+        updateThreadCellUI(i, null);
+      }
+    }
+
+    // 3. Move queue → free threads
+    while (load.queue.length > 0) {
+      const freeIdx = load.threads.indexOf(null);
+      if (freeIdx === -1) break;
+      const req = load.queue.shift();
+      req.startTime = now;
+      req.busyUntil = now + computeProcTime(req);
+      req.threadIdx = freeIdx;
+      load.threads[freeIdx] = req;
+      updateThreadCellUI(freeIdx, req);
+    }
+    updateQueueUI();
+
+    // Update metrics every ~250ms (sim time)
+    if (!load.lastMetricUpdate || now - load.lastMetricUpdate > 250) {
+      collectRpsBucket(now);
+      updateLoadMetricsUI();
+      drawSparkline();
+      load.lastMetricUpdate = now;
+    }
+  }
+
+  load.lastTick = realNow;
+  load.rafId = requestAnimationFrame(tickLoadSim);
+}
+
+function emitLoadRequest(user, now) {
+  const r = Math.random();
+  let type;
+  if (r < load.slowRatio) type = 'slow';
+  else if (r < load.slowRatio + 0.3) type = 'fast';
+  else type = 'medium';
+
+  const req = {
+    id: ++load.reqIdSeq,
+    userId: user.id,
+    type,
+    emitTime: now,
+  };
+
+  // 즉시 Tomcat 도착 처리
+  handleLoadArrival(req, now);
+}
+
+function handleLoadArrival(req, now) {
+  // Try thread allocation
+  const freeIdx = load.threads.indexOf(null);
+  if (freeIdx !== -1) {
+    req.startTime = now;
+    req.busyUntil = now + computeProcTime(req);
+    req.threadIdx = freeIdx;
+    load.threads[freeIdx] = req;
+    updateThreadCellUI(freeIdx, req);
+  } else if (load.queue.length < load.queueSize) {
+    req.queuedAt = now;
+    load.queue.push(req);
+    updateQueueUI();
+  } else {
+    // Reject
+    load.totalRejected++;
+    const userEl = document.querySelector(`.user-icon[data-user-id="${req.userId}"]`);
+    if (userEl) {
+      userEl.classList.add('rejected');
+      setTimeout(() => userEl.classList.remove('rejected'), 400);
+    }
+  }
+}
+
+function completeLoadRequest(req, threadIdx, now) {
+  const latency = now - req.emitTime;
+  load.latencies.push(latency);
+  if (load.latencies.length > 300) load.latencies.shift();
+  load.totalProcessed++;
+
+  // Track per-second RPS
+  const sec = Math.floor(now / 1000);
+  let bucket = load.rpsBuckets[load.rpsBuckets.length - 1];
+  if (!bucket || bucket.sec !== sec) {
+    bucket = { sec, count: 0 };
+    load.rpsBuckets.push(bucket);
+  }
+  bucket.count++;
+
+  // 사용자 카운터 증가
+  const userEl = document.querySelector(`.user-icon[data-user-id="${req.userId}"]`);
+  if (userEl) {
+    const counter = userEl.querySelector('.user-counter');
+    if (counter) {
+      const c = parseInt(counter.dataset.counter || '0', 10) + 1;
+      counter.dataset.counter = c;
+      counter.textContent = c;
+    }
+  }
+}
+
+function computeProcTime(req) {
+  const base = load.procTime;
+  if (req?.type === 'slow') return base * 3 + Math.random() * base;
+  if (req?.type === 'fast') return base * 0.3 + Math.random() * base * 0.2;
+  return base + (Math.random() - 0.5) * base * 0.4;
+}
+
+function updateThreadCellUI(idx, req) {
+  const el = document.querySelector(`.pool-thread[data-thread-id="${idx}"]`);
+  if (!el) return;
+  el.classList.remove('busy', 'busy-slow', 'busy-fast');
+  if (req) {
+    if (req.type === 'slow') el.classList.add('busy-slow');
+    else if (req.type === 'fast') el.classList.add('busy-fast');
+    else el.classList.add('busy');
+  }
+}
+
+function updateQueueUI() {
+  document.querySelectorAll('.queue-slot').forEach((el, i) => {
+    el.classList.toggle('occupied', i < load.queue.length);
+  });
+}
+
+function collectRpsBucket(now) {
+  const sec = Math.floor(now / 1000);
+  // Trim old buckets
+  while (load.rpsBuckets.length > 0 && load.rpsBuckets[0].sec < sec - 30) load.rpsBuckets.shift();
+  while (load.p95Buckets.length > 0 && load.p95Buckets[0].sec < sec - 30) load.p95Buckets.shift();
+
+  // Ensure current bucket
+  let bucket = load.rpsBuckets[load.rpsBuckets.length - 1];
+  if (!bucket || bucket.sec !== sec) {
+    bucket = { sec, count: 0 };
+    load.rpsBuckets.push(bucket);
+  }
+  // Count requests completed in last 250ms — use latencies length delta
+  // Simpler: track per-second count when request completes
+}
+
+function updateLoadMetricsUI() {
+  // RPS from last 5 seconds average
+  const recentBuckets = load.rpsBuckets.slice(-5);
+  const rps = recentBuckets.length ? recentBuckets.reduce((s, b) => s + b.count, 0) / Math.max(1, recentBuckets.length) : 0;
+  $('m-rps').textContent = rps.toFixed(1);
+  $('nginx-rps').textContent = rps.toFixed(1);
+
+  // Threads
+  const busy = load.threads.filter(t => t !== null).length;
+  $('m-threads').textContent = `${busy} / ${load.maxThreads}`;
+  $('m-threads-inline').textContent = busy;
+
+  // Queue
+  $('m-queue').textContent = `${load.queue.length} / ${load.queueSize}`;
+  $('m-queue-inline').textContent = load.queue.length;
+
+  // Totals
+  $('m-rejected').textContent = load.totalRejected;
+  $('rejected-count').textContent = load.totalRejected;
+
+  // Latency percentiles (단순 모드: p95만 표시)
+  if (load.latencies.length > 0) {
+    const sorted = [...load.latencies].sort((a, b) => a - b);
+    const p95 = sorted[Math.floor(sorted.length * 0.95)] || sorted[sorted.length - 1];
+    $('m-p95').textContent = Math.round(p95) + 'ms';
+  }
+
+  // Color coding
+  const tEl = $('metric-active');
+  tEl.classList.remove('warn', 'danger');
+  if (busy / load.maxThreads >= 1) tEl.classList.add('danger');
+  else if (busy / load.maxThreads >= 0.7) tEl.classList.add('warn');
+
+  const qEl = $('metric-queue');
+  qEl.classList.remove('warn', 'danger');
+  if (load.queueSize > 0) {
+    if (load.queue.length / load.queueSize >= 1) qEl.classList.add('danger');
+    else if (load.queue.length / load.queueSize >= 0.5) qEl.classList.add('warn');
+  }
+
+  $('metric-rejected').classList.toggle('danger', load.totalRejected > 0);
+}
+
+function drawSparkline() {
+  const drawCanvas = (canvasId, data, color, getValue) => {
+    const c = $(canvasId);
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const w = c.clientWidth || c.width;
+    const h = c.height;
+    c.width = w;  // reset internal width to match display
+    ctx.clearRect(0, 0, w, h);
+
+    if (data.length < 2) {
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '10px monospace';
+      ctx.fillText('데이터 수집 중...', 8, h / 2 + 4);
+      return;
+    }
+
+    const values = data.map(getValue);
+    const max = Math.max(...values, 1);
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = (i / (data.length - 1)) * w;
+      const y = h - (getValue(d) / max) * (h - 6) - 3;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+
+    // Fill
+    ctx.lineTo(w, h);
+    ctx.lineTo(0, h);
+    ctx.closePath();
+    ctx.fillStyle = color + '33';
+    ctx.fill();
+
+    // Max label
+    ctx.fillStyle = '#8b949e';
+    ctx.font = '9px monospace';
+    ctx.fillText(`max ${Math.round(max)}`, 5, 11);
+  };
+
+  drawCanvas('rps-spark', load.rpsBuckets, '#58a6ff', b => b.count);
+}
+
+// =================== Tab 2 Event handlers ===================
+const sliderBinds = [
+  ['lc-users', 'numUsers', 'lc-users-val', v => v, v => v],
+  ['lc-interval', 'interval', 'lc-interval-val', v => v, v => v],
+  ['lc-proctime', 'procTime', 'lc-proctime-val', v => v, v => v],
+  ['lc-maxthreads', 'maxThreads', 'lc-maxthreads-val', v => v, v => v],
+  ['lc-queue', 'queueSize', 'lc-queue-val', v => v, v => v],
+  ['lc-slow', 'slowRatio', 'lc-slow-val', v => v / 100, v => v],
+];
+
+sliderBinds.forEach(([inputId, stateKey, labelId, toState, toLabel]) => {
+  const el = document.getElementById(inputId);
+  if (!el) return;
+  el.addEventListener('input', e => {
+    const raw = parseInt(e.target.value, 10);
+    load[stateKey] = toState(raw);
+    document.getElementById(labelId).textContent = toLabel(raw);
+    if (inputId === 'lc-users') updateUserGridVisibility();
+    if (inputId === 'lc-maxthreads') rebuildThreadPool();
+    if (inputId === 'lc-queue') rebuildQueue();
+  });
+});
+
+document.addEventListener('DOMContentLoaded', () => {});
+
+// Late init in case elements ready
+setTimeout(() => {
+  const startBtn = document.getElementById('lc-start');
+  const pauseBtn = document.getElementById('lc-pause-load');
+  const resetBtn = document.getElementById('lc-reset');
+  if (startBtn) startBtn.addEventListener('click', startLoadSim);
+  if (pauseBtn) pauseBtn.addEventListener('click', pauseLoadSim);
+  if (resetBtn) resetBtn.addEventListener('click', resetLoadSim);
+
+  // 시뮬레이션 속도 슬라이더
+  const speedEl = document.getElementById('lc-speed');
+  if (speedEl) {
+    speedEl.addEventListener('input', e => {
+      const raw = parseInt(e.target.value, 10);
+      load.speed = raw / 10;  // 1→0.1x, 5→0.5x, 10→1.0x, 20→2.0x
+      document.getElementById('lc-speed-val').textContent = load.speed.toFixed(1) + 'x';
+    });
+  }
+
+  // Scenario presets
+  document.querySelectorAll('.scenario-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyScenario(btn.dataset.preset));
+  });
+}, 100);
+
+function applyScenario(preset) {
+  resetLoadSim();
+  const presets = {
+    normal:   { users: 4,  interval: 1000, proc: 500, threads: 8, queue: 4,  slow: 0 },
+    saturate: { users: 8,  interval: 500,  proc: 500, threads: 6, queue: 4,  slow: 0 },
+    queue:    { users: 12, interval: 400,  proc: 500, threads: 6, queue: 6,  slow: 0 },
+    refuse:   { users: 20, interval: 300,  proc: 600, threads: 2, queue: 2,  slow: 0 },
+    slow:     { users: 12, interval: 500,  proc: 400, threads: 6, queue: 4,  slow: 30 },
+  };
+  const p = presets[preset];
+  if (!p) return;
+
+  const set = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.value = val;
+      el.dispatchEvent(new Event('input'));
+    }
+  };
+  set('lc-users', p.users);
+  set('lc-interval', p.interval);
+  set('lc-proctime', p.proc);
+  set('lc-maxthreads', p.threads);
+  set('lc-queue', p.queue);
+  set('lc-slow', p.slow);
+
+  // 자동 시작 X — 사용자가 ▶ 클릭하도록
+  const status = document.getElementById('lc-status');
+  if (status) {
+    status.textContent = `프리셋 적용됨: ${preset} — ▶ 누르세요`;
+    status.style.color = 'var(--orange)';
+  }
+}
+</script>
+</body>
+</html>

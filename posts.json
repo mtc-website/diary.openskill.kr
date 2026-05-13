@@ -1,9 +1,56 @@
 {
   "categories": [
     "msa",
-    "설치"
+    "설치",
+    "skill"
   ],
   "posts": [
+    {
+      "id": "tomcat-architecture",
+      "title": "Apache + Tomcat 아키텍처 가이드",
+      "date": "2026-05-14",
+      "summary": "브라우저 요청이 Apache를 지나 Tomcat의 Servlet까지 어떻게 도달하는지, Connector·Thread Pool·Session·web.xml·AJP까지 한 흐름으로 정리한 학습 자료.",
+      "filename": "posts/9/tomcat-architecture.html",
+      "tags": [
+        "tomcat",
+        "apache",
+        "servlet",
+        "ajp",
+        "session",
+        "thread-pool"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/tomcat-architecture.html",
+      "themeInjected": true,
+      "originalFilename": "tomcat-architecture.html",
+      "postId": 9,
+      "categories": [
+        "skill"
+      ]
+    },
+    {
+      "id": "tomcat-simulator",
+      "title": "Apache + Tomcat 아키텍처 시뮬레이터",
+      "date": "2026-05-14",
+      "summary": "Apache 정적·동적 분기, AJP 프록시, Tomcat Connector·Thread Pool·Filter·Servlet·Session까지 요청 한 건이 흐르는 모든 단계를 시각화하는 실습용 시뮬레이터.",
+      "filename": "posts/10/tomcat-simulator.html",
+      "tags": [
+        "tomcat",
+        "apache",
+        "simulator",
+        "servlet",
+        "ajp",
+        "thread-pool"
+      ],
+      "engine": "html",
+      "sourcePath": "_src/tomcat-simulator.html",
+      "themeInjected": true,
+      "originalFilename": "tomcat-simulator.html",
+      "postId": 10,
+      "categories": [
+        "skill"
+      ]
+    },
     {
       "id": "msa-k8s-websocket",
       "title": "MSA · Kubernetes · WebSocket 통합 시뮬레이터",
