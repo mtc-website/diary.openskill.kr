@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<!-- ======= Open Skill Diary theme adapter (injected) ======= -->
+<style id="osd-theme-adapter">
+  body { padding-top: 56px !important; }
+  html, body {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    overflow-y: auto !important;
+  }
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] body { background: #f7f8fb !important; }
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] body { background: #0c1220 !important; }
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper {
+    filter: invert(0.92) hue-rotate(180deg);
+    min-height: 100vh;
+  }
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper img,
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper svg,
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper video,
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper canvas,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper img,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper svg,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper video,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper canvas {
+    filter: invert(1) hue-rotate(180deg);
+  }
+  #osd-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 16px;
+    background: rgba(15, 22, 36, 0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    color: #e8eef9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard",
+                 "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  html[data-osd-theme="light"] #osd-bar {
+    background: rgba(255,255,255,0.92);
+    border-bottom: 1px solid #e3e8ef;
+    color: #1a2332;
+    box-shadow: 0 1px 3px rgba(20,30,50,0.06), 0 4px 16px rgba(20,30,50,0.04);
+  }
+  #osd-bar a, #osd-bar button {
+    color: inherit; background: transparent; border: 1px solid currentColor;
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    opacity: 0.85; transition: opacity .15s, transform .15s;
+    font-family: inherit;
+  }
+  #osd-bar a:hover, #osd-bar button:hover { opacity: 1; transform: translateY(-1px); }
+  #osd-bar .osd-bar__title { font-weight: 700; letter-spacing: -0.2px; opacity: 0.9;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #osd-bar .osd-bar__actions { display: flex; gap: 8px; flex-shrink: 0; }
+  #osd-bar .osd-bar__brand { font-weight: 700; font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+  @media (max-width: 640px) {
+    #osd-bar { padding: 8px 10px; font-size: 12px; }
+    #osd-bar .osd-bar__title { display: none; }
+  }
+</style>
+<script>
+  (function(){
+    document.documentElement.setAttribute('data-osd-source-theme', 'dark');
+    try {
+      var t = localStorage.getItem('blog-theme') || 'dark';
+      document.documentElement.setAttribute('data-osd-theme', t);
+    } catch(e){}
+  })();
+</script>
+<!-- ======= /theme adapter ======= -->
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Apache + Tomcat 아키텍처 가이드</title>
+<meta name="description" content="브라우저 요청이 Apache를 지나 Tomcat의 Servlet까지 어떻게 도달하는지, Connector·Thread Pool·Session·web.xml·AJP까지 한 흐름으로 정리한 학습 자료.">
+<style>
+:root{
+  --bg: #0d1117;
+  --panel: #161b22;
+  --panel-2: #1c2128;
+  --border: #30363d;
+  --text: #c9d1d9;
+  --text-dim: #8b949e;
+  --accent: #58a6ff;
+  --green: #3fb950;
+  --orange: #d29922;
+  --red: #f85149;
+  --purple: #bc8cff;
+  --pink: #ff7eb6;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI",
+               "Noto Sans KR", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap{
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 56px 24px 96px;
+}
+.hero{
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 24px;
+  margin-bottom: 36px;
+}
+.hero h1{
+  margin: 0 0 12px;
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.5px;
+  color: #f0f6fc;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.hero .meta{
+  color: var(--text-dim);
+  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+.hero .meta .badge{
+  background: rgba(88,166,255,.12);
+  border: 1px solid rgba(88,166,255,.35);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.content h2{
+  margin: 56px 0 16px;
+  font-size: 24px;
+  color: #f0f6fc;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.content h3{
+  margin: 36px 0 12px;
+  font-size: 18px;
+  color: #f0f6fc;
+  font-weight: 700;
+}
+.content h4{ margin: 24px 0 8px; font-size: 16px; color: #f0f6fc; font-weight: 700; }
+.content p{ margin: 12px 0; }
+.content a{ color: var(--accent); text-decoration: none; border-bottom: 1px solid transparent; }
+.content a:hover{ border-bottom-color: var(--accent); }
+.content strong{ color: #f0f6fc; }
+.content em{ color: var(--pink); font-style: normal; }
+.content ul, .content ol{ padding-left: 24px; margin: 12px 0; }
+.content li{ margin: 6px 0; }
+.content blockquote{
+  margin: 16px 0;
+  padding: 12px 18px;
+  border-left: 4px solid var(--accent);
+  background: rgba(88,166,255,.06);
+  border-radius: 0 6px 6px 0;
+  color: var(--text);
+}
+.content blockquote p{ margin: 6px 0; }
+.content code{
+  font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.9em;
+  color: #ffa657;
+}
+.content pre{
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.content pre code{
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--text);
+  font-size: 13px;
+}
+.content hr{
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 36px 0;
+}
+.content table{
+  width: 100%;
+  border-collapse: collapse;
+  margin: 20px 0;
+  font-size: 14px;
+  display: block;
+  overflow-x: auto;
+}
+.content table thead{
+  background: var(--panel);
+}
+.content table th{
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 2px solid var(--border);
+  color: #f0f6fc;
+  font-weight: 700;
+}
+.content table td{
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.content table tr:hover td{
+  background: rgba(88,166,255,.04);
+}
+.sim-cta{
+  margin: 28px 0 8px;
+  padding: 18px 22px;
+  border: 1px solid rgba(63,185,80,.4);
+  background: rgba(63,185,80,.06);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.sim-cta .txt{ flex: 1; min-width: 240px; }
+.sim-cta .txt b{ color: #f0f6fc; font-size: 15px; display: block; margin-bottom: 4px; }
+.sim-cta .txt span{ font-size: 13px; color: var(--text-dim); }
+.sim-cta a{
+  background: var(--green);
+  color: #052e16 !important;
+  font-weight: 700;
+  padding: 10px 18px;
+  border-radius: 8px;
+  border-bottom: none !important;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.sim-cta a:hover{ filter: brightness(1.1); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="hero">
+    <h1>Apache + Tomcat 아키텍처 가이드</h1>
+    <div class="meta">
+      <time datetime="2026-05-14">2026-05-14</time>
+      <span class="badge">skill</span>
+    </div>
+  </header>
+  <div class="sim-cta"><div class="txt"><b>실습용 시뮬레이터</b><span>이 글의 모든 흐름을 한 화면에서 단계별로 따라가볼 수 있습니다.</span></div><a href="../10/tomcat-simulator.html">시뮬레이터 열기 →</a></div>
+  <article class="content">
+  <h1 id="apache-tomcat">Apache + Tomcat 아키텍처 가이드</h1>
+<blockquote>
+<p>시뮬레이터(<code>tomcat-simulator.html</code>)와 함께 보는 학습 자료</p>
+</blockquote>
+<hr>
+<h2 id="0">0. 한눈에 보는 큰 그림</h2>
+<pre><code>[Browser]  ──HTTP──▶  [Apache HTTP Server]  ──AJP──▶  [Tomcat]  ──▶  [Servlet/JSP]
+                            │                            │
+                            ├─ 정적 (html/css/img)        ├─ Connector
+                            │  → 직접 응답                 ├─ Thread Pool
+                            │                            ├─ web.xml (Filter)
+                            └─ 동적 (.jsp, /api/*)        ├─ Servlet
+                               → Tomcat 위임              └─ Session Store
+</code></pre>
+<p>핵심 통찰 한 줄: <strong>Apache는 빠르게 정적 파일을 쏴주는 데 특화되어 있고, Tomcat은 Java 코드(Servlet)를 실행하는 컨테이너다.</strong> 둘을 같이 쓰는 이유는 "정적은 Apache, 동적은 Tomcat"으로 역할을 나눠 효율을 끌어올리기 위함이다.</p>
+<hr>
+<h2 id="1-browser">1. 클라이언트 (Browser)</h2>
+<p>브라우저가 HTTP Request를 만들 때 들어가는 것들:</p>
+<pre><code>GET /users.jsp HTTP/1.1            ← Request Line
+Host: app.example.com              ← Headers
+User-Agent: Mozilla/5.0...
+Cookie: JSESSIONID=ABC123...       ← 자동 첨부되는 쿠키
+Accept: text/html
+
+(body — POST일 때만)
+username=admin&amp;password=...
+</code></pre>
+<p>브라우저는 도메인에 저장된 쿠키를 <strong>자동으로</strong> 매 요청마다 첨부한다. 이게 세션 유지의 출발점.</p>
+<hr>
+<h2 id="2-web-server-apache-nginx">2. Web Server (Apache / Nginx)</h2>
+<h3 id="21-reverse-proxy">2.1 용어 정리 — Reverse Proxy의 두 가지 의미</h3>
+<p>"Reverse Proxy"라는 단어는 두 층위에서 쓰여서 헷갈리기 쉽다.</p>
+<ul>
+<li><strong>(a) 역할로서의 Reverse Proxy</strong>: WAS 앞단에 서서 클라이언트 요청을 받아 적절한 백엔드로 전달하는 <strong>서버 전체의 역할</strong>. Apache/Nginx 서버 자체가 이 역할을 한다.</li>
+<li><strong>(b) 디렉티브/모듈로서의 Proxy Pass</strong>: 그 서버 안에서 실제로 "이 URL은 저 백엔드로 보낸다"를 정의하는 <strong>설정 메커니즘</strong>. Apache의 <code>mod_proxy_ajp</code>, Nginx의 <code>proxy_pass</code> 디렉티브가 이에 해당.</li>
+</ul>
+<p>즉 <strong>(a)는 큰 그림에서의 역할</strong>이고 <strong>(b)는 그 역할을 실제로 구현하는 작은 부품</strong>이다. 시뮬레이터에서는 헷갈림을 피하려고 (b)를 <strong>"Proxy Pass"</strong>라고 부른다.</p>
+<pre><code>                   ┌─────────────────────────────────────────┐
+                   │ Web Server (= Reverse Proxy 역할)        │
+[Browser] ──HTTP──▶│  ┌─────────┐ ┌────────────┐ ┌────────┐  │──▶ [WAS]
+                   │  │Listener │ │ Static     │ │Proxy   │  │
+                   │  │         │ │ Handler    │ │Pass(b) │  │
+                   │  └─────────┘ └────────────┘ └────────┘  │
+                   └─────────────────────────────────────────┘
+                                  ↑(a) 전체가 Reverse Proxy
+</code></pre>
+<h3 id="22">2.2 역할 (구현체 무관)</h3>
+<ul>
+<li><strong>Listener</strong>: 80/443 포트에서 TCP 연결 수락</li>
+<li><strong>Request Router</strong>: 받은 URI를 설정된 매칭 규칙으로 분기</li>
+<li><strong>Static Handler</strong>: <code>DocumentRoot</code> 폴더에서 파일을 직접 응답</li>
+<li><strong>Proxy Pass</strong>: 매칭된 URL을 백엔드(WAS)로 포워딩 — 이게 곧 Reverse Proxy 동작의 핵심</li>
+</ul>
+<h3 id="23-proxy-pass">2.3 Proxy Pass 구현체 매핑</h3>
+<p>"정적이냐 동적이냐"는 <strong>사실 Web Server 입장에선 모르는 개념</strong>이다. 설정 파일의 매칭 규칙만 본다. 매칭되면 백엔드로 보내고(Proxy Pass), 매칭 안 되면 자기가 정적 파일로 응답한다(Static Handler).</p>
+<table>
+<thead>
+<tr>
+<th>Web Server</th>
+<th>Proxy Pass 구현</th>
+<th>백엔드 프로토콜</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Apache</td>
+<td><code>mod_proxy_ajp</code></td>
+<td>AJP (8009)</td>
+</tr>
+<tr>
+<td>Apache</td>
+<td><code>mod_proxy_http</code></td>
+<td>HTTP (8080)</td>
+</tr>
+<tr>
+<td>Apache</td>
+<td><code>mod_jk</code> (legacy)</td>
+<td>AJP</td>
+</tr>
+<tr>
+<td>Nginx</td>
+<td><code>proxy_pass</code> directive</td>
+<td>HTTP / FastCGI / uwsgi</td>
+</tr>
+</tbody>
+</table>
+<p>설정 예시 (Apache, Nginx 둘 다):</p>
+<pre><code class="language-apache"># Apache
+ProxyPass        /api/    ajp://localhost:8009/api/
+ProxyPassMatch   &quot;\.jsp$&quot; ajp://localhost:8009
+</code></pre>
+<pre><code class="language-nginx"># Nginx
+location /api/    { proxy_pass http://localhost:8080; }
+location ~ \.jsp$ { proxy_pass http://localhost:8080; }
+</code></pre>
+<p>이 매칭 규칙에 안 걸리는 URL은 <code>DocumentRoot</code> / <code>root</code>에서 파일로 직접 응답.</p>
+<h3 id="24-web-server-was">2.4 왜 Web Server를 WAS 앞에 두나?</h3>
+<ul>
+<li>C로 짠 Apache/Nginx가 파일 I/O와 <code>sendfile</code> syscall에 매우 빠름</li>
+<li>Tomcat을 안 거치므로 Java 힙·GC·스레드 풀 부담 0</li>
+<li>SSL/TLS 종료, 로드 밸런싱, 캐싱, 압축 등을 Web Server 레벨에서 처리</li>
+<li>결과: 트래픽의 절반 이상이 Tomcat에 닿지 않아 안정성·성능 ↑</li>
+</ul>
+<blockquote>
+<p>Spring Boot는 임베디드 Tomcat을 jar에 포함하므로 Web Server 없이도 동작한다. 대신 운영 환경에선 보통 그 앞에 Nginx를 둔다.</p>
+</blockquote>
+<hr>
+<h2 id="4-tomcat">4. Tomcat 내부 구조</h2>
+<p>Tomcat은 크게 다음 계층으로 구성된다.</p>
+<pre><code>Server
+ └── Service
+      ├── Connector (요청 받기)
+      └── Engine
+           └── Host (가상호스트)
+                └── Context (웹앱 = WAR)
+                     └── Wrapper (Servlet 1개)
+</code></pre>
+<h3 id="41-connector-tomcat">4.1 Connector — Tomcat의 입출구</h3>
+<p>Connector는 <strong>요청을 받는 일</strong>과 <strong>응답을 내보내는 일</strong>을 모두 담당한다. 그래서 안에는 두 개의 버퍼가 쌍으로 존재한다.</p>
+<pre><code>┌──────── Connector (Coyote 계층) ────────┐
+│                                         │
+│   Socket ──▶ [Request Buffer]  ──▶ Request 객체 ─┐
+│                ├ Headers 영역                    │
+│                └ Body 영역                    Servlet 실행
+│                                                  │
+│   Socket ◀── [Response Buffer] ◀── Response 객체 ┘
+│                ├ Status + Headers 영역
+│                └ Body 영역 (기본 8KB)
+│                                         │
+└─────────────────────────────────────────┘
+</code></pre>
+<p><strong>Request Buffer</strong>
+- 소켓에서 읽은 바이트를 헤더/바디로 파싱
+- Header 영역: Request Line, 일반 헤더, Cookie 헤더
+- Body 영역: POST/PUT 등의 페이로드 (GET은 비어있음)</p>
+<p><strong>Response Buffer (기본 8KB)</strong>
+- 서블릿이 <code>response.getWriter().write(...)</code> 호출해도 즉시 클라이언트로 안 나감
+- 일단 이 버퍼에 쌓임
+- 버퍼가 차거나 <code>flushBuffer()</code> 호출 시 → <strong>committed</strong> 상태로 전환 → 그제서야 소켓으로 흘러나감
+- <strong>committed 후엔 헤더/상태코드 변경 불가</strong> (이미 첫 청크가 나갔으므로)</p>
+<pre><code class="language-java">response.setBufferSize(16384);     // 버퍼 크기 변경 (committed 전에만)
+response.getWriter().write(&quot;hi&quot;);  // 버퍼에 쌓임 (아직 클라이언트 X)
+response.setHeader(&quot;X-Foo&quot;,&quot;v&quot;);   // ← 가능 (uncommitted)
+response.flushBuffer();            // 강제로 비워서 전송 → committed
+response.setStatus(500);           // ← 무시됨! 이미 committed
+response.resetBuffer();            // body만 비우기 (committed 전)
+response.reset();                  // 헤더까지 다 비우기 (committed 전)
+</code></pre>
+<p><strong>왜 응답 버퍼가 필요한가?</strong> HTTP는 헤더 → 바디 순서로 보내야 한다. 첫 바이트가 나가는 순간 헤더는 확정되어 되돌릴 수 없다. 그래서 Tomcat은 응답을 일단 버퍼에 모아두고, 그 동안엔 서블릿이 "역시 에러로 바꿔야겠다", "헤더 하나 추가해야겠다" 같은 변경을 할 수 있게 해준다.</p>
+<p><strong>버퍼는 그것만이 아니다</strong></p>
+<pre><code>서블릿 PrintWriter (내부 버퍼)
+   ↓
+Http11OutputBuffer (Tomcat, 기본 8KB) ← committed/uncommitted 개념
+   ↓
+OS TCP Send Buffer (커널, 64KB~256KB)
+   ↓
+NIC → 네트워크
+</code></pre>
+<p>write() 했다고 즉시 클라이언트가 받는 게 아니다. 3~4 계층의 버퍼를 거친다.</p>
+<p><strong>Connector 구현체</strong>
+- <strong>NIO (기본)</strong>: 한 스레드가 여러 연결을 Selector로 폴링
+- <strong>APR</strong>: Apache Portable Runtime (C 네이티브) — 가장 빠름
+- <strong>NIO2</strong>: 비동기 I/O</p>
+<h3 id="42-thread-pool">4.2 Thread Pool — 가장 중요한 개념</h3>
+<p>Tomcat은 기본적으로 <strong>1 Request = 1 Thread</strong> 모델.</p>
+<table>
+<thead>
+<tr>
+<th>파라미터</th>
+<th>의미</th>
+<th>기본값</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>maxThreads</code></td>
+<td>동시에 처리 가능한 최대 요청 수</td>
+<td>200</td>
+</tr>
+<tr>
+<td><code>minSpareThreads</code></td>
+<td>항상 대기시키는 최소 스레드 수</td>
+<td>10</td>
+</tr>
+<tr>
+<td><code>acceptCount</code></td>
+<td>풀이 꽉 찰 때 OS 큐 대기 크기</td>
+<td>100</td>
+</tr>
+<tr>
+<td><code>connectionTimeout</code></td>
+<td>연결 유지 타임아웃</td>
+<td>20000ms</td>
+</tr>
+</tbody>
+</table>
+<p>동작 흐름:
+1. 요청 도착 → Connector가 받음
+2. 풀에 idle 스레드 있으면 즉시 할당
+3. 풀이 꽉 차면 <strong>acceptCount 큐</strong>에 대기
+4. 큐도 꽉 차면 → <strong>Connection Refused</strong> (클라이언트가 에러 받음)</p>
+<blockquote>
+<p><strong>운영 팁</strong>: <code>maxThreads</code>를 무작정 키우면 메모리·컨텍스트 스위칭 비용으로 오히려 느려진다. DB Connection Pool 크기와 균형을 맞춰야 함.</p>
+</blockquote>
+<h3 id="43">4.3 요청·응답 처리 순서 요약</h3>
+<pre><code>1. 소켓에서 바이트 도착
+2. Connector의 Request Buffer가 Header → Body 순으로 파싱
+3. Thread Pool에서 Worker 스레드 할당
+4. web.xml 필터 체인 → 서블릿 service() 호출
+5. 서블릿이 Response 객체에 write — Response Buffer에 쌓임
+6. flushBuffer() 또는 버퍼 full → committed → 소켓으로 전송
+7. Worker 스레드는 Pool로 반환
+</code></pre>
+<hr>
+<h2 id="5-webxml">5. web.xml — "문지기"</h2>
+<p><code>web.xml</code> (또는 <code>@WebServlet</code> 어노테이션)은 <strong>어떤 URL을 어떤 서블릿이 처리하는지</strong>를 정의하는 배치 기술자.</p>
+<pre><code class="language-xml">&lt;web-app&gt;
+  &lt;!-- 필터 등록 --&gt;
+  &lt;filter&gt;
+    &lt;filter-name&gt;EncodingFilter&lt;/filter-name&gt;
+    &lt;filter-class&gt;com.example.EncodingFilter&lt;/filter-class&gt;
+  &lt;/filter&gt;
+  &lt;filter-mapping&gt;
+    &lt;filter-name&gt;EncodingFilter&lt;/filter-name&gt;
+    &lt;url-pattern&gt;/*&lt;/url-pattern&gt;
+  &lt;/filter-mapping&gt;
+
+  &lt;!-- 서블릿 등록 --&gt;
+  &lt;servlet&gt;
+    &lt;servlet-name&gt;LoginServlet&lt;/servlet-name&gt;
+    &lt;servlet-class&gt;com.example.LoginServlet&lt;/servlet-class&gt;
+  &lt;/servlet&gt;
+  &lt;servlet-mapping&gt;
+    &lt;servlet-name&gt;LoginServlet&lt;/servlet-name&gt;
+    &lt;url-pattern&gt;/login&lt;/url-pattern&gt;
+  &lt;/servlet-mapping&gt;
+&lt;/web-app&gt;
+</code></pre>
+<p>매칭 우선순위:
+1. <strong>Exact match</strong>: <code>/login</code>
+2. <strong>Path prefix</strong>: <code>/api/*</code>
+3. <strong>Extension match</strong>: <code>*.jsp</code>
+4. <strong>Default</strong>: <code>/</code> (DefaultServlet이 처리)</p>
+<hr>
+<h2 id="6-filter-chain">6. Filter Chain</h2>
+<p>서블릿 실행 <strong>전후</strong>로 끼어드는 인터셉터들. 책임 사슬 패턴.</p>
+<pre><code>Request ─▶ EncodingFilter ─▶ AuthFilter ─▶ LoggingFilter ─▶ Servlet ─▶ (역순 응답)
+</code></pre>
+<p>전형적 용도:
+- <strong>EncodingFilter</strong>: UTF-8 강제
+- <strong>AuthFilter</strong>: 세션/토큰 검증, 미인증이면 401
+- <strong>LoggingFilter</strong>: 요청/응답 로깅
+- <strong>CompressionFilter</strong>: gzip
+- <strong>CORS Filter</strong>: 크로스 오리진 헤더</p>
+<p>핵심: <code>chain.doFilter(req, res)</code>를 호출해야 다음 필터/서블릿으로 넘어간다.</p>
+<hr>
+<h2 id="7-servlet">7. Servlet 실행</h2>
+<h3 id="71">7.1 생명주기</h3>
+<pre><code>init()    ─ 클래스당 1회 (서버 시작 또는 첫 요청 시)
+service() ─ 매 요청마다 호출 → doGet/doPost 등으로 분기
+destroy() ─ 종료 시 1회
+</code></pre>
+<p><strong>서블릿은 싱글톤</strong>이다. 여러 요청이 동시에 같은 인스턴스의 <code>doGet()</code>을 호출하므로 <strong>인스턴스 변수는 thread-unsafe</strong>.</p>
+<h3 id="72-get-vs-post">7.2 GET vs POST</h3>
+<table>
+<thead>
+<tr>
+<th>항목</th>
+<th>GET</th>
+<th>POST</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>파라미터 위치</td>
+<td>URL Query String</td>
+<td>Request Body</td>
+</tr>
+<tr>
+<td>멱등성</td>
+<td>O (여러 번 호출해도 같은 결과)</td>
+<td>X</td>
+</tr>
+<tr>
+<td>캐싱</td>
+<td>가능</td>
+<td>불가</td>
+</tr>
+<tr>
+<td>크기 제한</td>
+<td>URL 길이 (~2KB)</td>
+<td>매우 큼 (수 MB)</td>
+</tr>
+<tr>
+<td>용도</td>
+<td>조회, 검색</td>
+<td>생성, 로그인, 파일 업로드</td>
+</tr>
+</tbody>
+</table>
+<p>서블릿에서:</p>
+<pre><code class="language-java">protected void doGet(HttpServletRequest req, HttpServletResponse res) {
+    String q = req.getParameter(&quot;q&quot;);           // Query String에서
+}
+protected void doPost(HttpServletRequest req, HttpServletResponse res) {
+    String user = req.getParameter(&quot;username&quot;); // Body에서 (자동 파싱)
+    BufferedReader br = req.getReader();        // 원본 body 직접 읽기
+}
+</code></pre>
+<hr>
+<h2 id="8-template-engine-html">8. Template Engine — HTML 렌더링 추상화</h2>
+<p>서블릿이 직접 HTML 문자열을 만들면 코드가 지저분해진다 (<code>out.println("&lt;html&gt;...")</code> 지옥). 그래서 <strong>템플릿 파일</strong>에 마크업을 두고, 서블릿은 <strong>데이터만 전달</strong>해서 렌더링을 위임한다. 이 위임 대상이 <strong>Template Engine</strong>.</p>
+<pre><code>[Servlet]               [Template Engine]
+List&lt;User&gt; users  ──▶   users.mustache  +  data  ──▶  HTML 문자열  ──▶  Response Buffer
+                        (캐시 우선 확인)
+</code></pre>
+<h3 id="81-java">8.1 구현체 (Java 진영)</h3>
+<ul>
+<li><strong>JSP</strong> — Java EE 표준. <code>.jsp</code> → <code>.java</code> → <code>.class</code>로 컴파일. Jasper 엔진. 오래된 방식</li>
+<li><strong>Mustache</strong> — Logic-less, 다른 언어와도 호환</li>
+<li><strong>Thymeleaf</strong> — Spring 진영 표준. 자연 HTML (<code>&lt;th:&gt;</code> 속성)</li>
+<li><strong>Freemarker</strong> — 강력한 표현식, 메일/문서 템플릿에도</li>
+<li><strong>Velocity</strong> — 단순한 문법</li>
+<li><strong>Handlebars / Pebble / JTE</strong> 등</li>
+</ul>
+<h3 id="82">8.2 공통 메커니즘 — 컴파일 + 캐시</h3>
+<p>모든 템플릿 엔진은 비슷한 패턴을 따른다:</p>
+<pre><code>[첫 요청]
+  1. 템플릿 파일 읽기 (디스크 I/O)
+  2. 파싱 → 내부 표현으로 컴파일 (AST나 Java 클래스로)
+  3. 캐시에 저장
+  4. 데이터 바인딩해서 렌더링
+  → 수십~수백 ms 소요
+
+[이후 요청]
+  1. 캐시 히트
+  2. 데이터 바인딩만 수행해서 렌더링
+  → ms 단위
+</code></pre>
+<p>JSP는 이 "컴파일된 형태"가 실제 <code>.class</code> 파일로 디스크에 떨어진다. Mustache 같은 라이브러리형 엔진은 보통 메모리에만 컴파일된 AST를 보관.</p>
+<h3 id="83">8.3 운영 환경 팁</h3>
+<ul>
+<li><strong>JSP는 사전 컴파일(precompile)</strong> 해서 배포 → 첫 요청 지연 제거</li>
+<li><strong>개발 모드</strong>: 파일 변경 감지해서 자동 재컴파일</li>
+<li><strong>운영 모드</strong>: 파일 변경 감지 끄고 영구 캐시 → 성능 최적화</li>
+<li>캐시는 LRU 등으로 관리, 너무 많은 템플릿이 있으면 메모리 부담</li>
+</ul>
+<hr>
+<h2 id="9-session-cookie">9. Session &amp; Cookie — 상태 유지</h2>
+<p>HTTP는 stateless. 그래서 "이 요청이 누구로부터 왔는지"를 알려면 별도 메커니즘이 필요하다.</p>
+<h3 id="91">9.1 동작 흐름 (타이밍 주의!)</h3>
+<pre><code>[1차 요청 — 예: POST /login]
+  Browser ──▶ Tomcat
+  ① Tomcat: Session 객체 생성 → Server Session Store에 즉시 저장
+  ② 응답 헤더에 Set-Cookie: JSESSIONID=ABC123 추가
+  ③ 응답 패킷이 Apache → Browser로 도달
+  ④ ★ 이 시점에서야 Browser가 Set-Cookie를 읽고 쿠키 저장소에 저장 ★
+     (응답 도착 전엔 브라우저는 JSESSIONID를 모름!)
+
+[2차 요청 — 예: GET /users.jsp]
+  Browser: 저장된 쿠키 JSESSIONID=ABC123 자동 첨부
+  Browser ──▶ Tomcat
+  Tomcat: Server Session Store에서 ABC123 찾아 Session 객체 복원
+</code></pre>
+<blockquote>
+<p><strong>흔한 오해</strong>: "세션이 만들어지면 브라우저에 바로 쿠키가 생긴다" — 틀림.
+서버 메모리(Session Store)와 브라우저 쿠키 저장소는 <strong>물리적으로 분리</strong>되어 있고,
+둘을 잇는 것은 <strong>응답에 실린 Set-Cookie 헤더</strong>뿐이다. 응답이 도착해야만 동기화된다.</p>
+</blockquote>
+<h3 id="92-session">9.2 Session 사용</h3>
+<pre><code class="language-java">HttpSession session = req.getSession();  // 없으면 생성
+session.setAttribute(&quot;user&quot;, &quot;admin&quot;);
+session.setAttribute(&quot;cart&quot;, cart);
+String user = (String) session.getAttribute(&quot;user&quot;);
+session.invalidate();  // 로그아웃
+</code></pre>
+<h3 id="93">9.3 세션 저장 위치</h3>
+<ul>
+<li>기본: <strong>Tomcat 메모리</strong> (WAS 재시작 시 날아감)</li>
+<li>대안:</li>
+<li>디스크 (FileStore)</li>
+<li>Redis / Memcached — 가장 흔한 운영 패턴</li>
+<li>DB</li>
+<li>JWT로 stateless 전환 (세션 안 쓰기)</li>
+</ul>
+<h3 id="94">9.4 쿠키 보안</h3>
+<ul>
+<li><code>HttpOnly</code>: JS에서 접근 차단 → XSS 방어</li>
+<li><code>Secure</code>: HTTPS에서만 전송</li>
+<li><code>SameSite</code>: CSRF 방어 (Lax/Strict)</li>
+</ul>
+<hr>
+<h2 id="10">10. 응답의 여정 (역순)</h2>
+<pre><code>Servlet
+  └ response.getWriter().write(&quot;...&quot;) / response.setStatus(200)
+     ↓
+Tomcat Connector — HTTP 응답 메시지로 직렬화
+     ↓
+AJP → Apache mod_proxy_ajp
+     ↓
+Apache → 클라이언트 TCP 소켓
+     ↓
+Browser ← HTTP Response 파싱 후 렌더링
+</code></pre>
+<p>이때 Worker 스레드는 <strong>Thread Pool로 반환</strong>되어 idle 상태가 된다 (스레드는 재사용된다, 매번 만들지 않는다).</p>
+<hr>
+<h2 id="11">11. 자주 묻는 질문</h2>
+<h3 id="q-apache-tomcat">Q. Apache 없이 Tomcat만 써도 되나?</h3>
+<p>가능. Tomcat 자체에도 HTTP Connector(8080)가 있다. 다만:
+- 정적 파일 처리 성능이 Apache보다 떨어짐
+- SSL 종료, 로드밸런싱, 캐싱은 Apache/Nginx가 더 잘함
+- 그래서 보통 <strong>Nginx + Tomcat</strong> 또는 <strong>Apache + Tomcat</strong> 구조로 간다.</p>
+<h3 id="q-spring-boot-tomcat">Q. Spring Boot는 Tomcat 어디서 돌아가나?</h3>
+<p>Spring Boot는 <strong>임베디드 Tomcat</strong>을 jar 안에 포함시킨다. <code>main()</code> 실행 시 Tomcat이 같이 뜸. 외부 web.xml은 필요 없고 어노테이션(<code>@RestController</code> 등)으로 등록.</p>
+<h3 id="q-thread-pool">Q. Thread Pool이 꽉 차면?</h3>
+<ol>
+<li>새 요청은 <code>acceptCount</code> 큐에서 대기</li>
+<li>큐도 차면 connection refused</li>
+<li>보통 원인은: 느린 DB 쿼리, 외부 API 대기, 무한 루프 → 한 스레드가 오래 점유</li>
+<li>대응: 비동기 처리, DB 쿼리 최적화, 서킷 브레이커, scale-out</li>
+</ol>
+<h3 id="q-1-request-1-thread">Q. 1 Request = 1 Thread를 깰 수 없나?</h3>
+<p>Servlet 3.0+의 <strong>Async Servlet</strong> 또는 Spring WebFlux로 <strong>이벤트 루프 모델</strong> (Netty 기반)을 쓰면 한 스레드로 수많은 연결을 다룰 수 있다. I/O 대기가 많은 워크로드에서 유리.</p>
+<hr>
+<h2 id="12">12. 시뮬레이터 사용법</h2>
+<p><code>tomcat-simulator.html</code>을 브라우저로 열면 됩니다.</p>
+<h3 id="_1">버튼별 시연 시나리오</h3>
+<table>
+<thead>
+<tr>
+<th>버튼</th>
+<th>시연 포인트</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GET /index.html</code></td>
+<td>정적 — Web Server의 Static Handler가 바로 응답, Tomcat 안 거침</td>
+</tr>
+<tr>
+<td><code>GET /logo.png</code></td>
+<td>정적 — MIME만 이미지</td>
+</tr>
+<tr>
+<td><code>GET /login-form</code></td>
+<td>동적 GET — Proxy Pass로 Tomcat 전달, Template Engine으로 <code>login.mustache</code> 렌더링 (첫 호출 시 컴파일, 이후 캐시)</td>
+</tr>
+<tr>
+<td><code>POST /login</code></td>
+<td>실제 로그인 — Body 파싱, 서버 Session Store에 세션 생성, Set-Cookie 응답</td>
+</tr>
+<tr>
+<td><code>POST /api/users</code></td>
+<td>보호 자원 — 세션 쿠키 없으면 AuthFilter가 401로 차단, 있으면 UsersServlet.doPost() 실행</td>
+</tr>
+</tbody>
+</table>
+<h3 id="_2">관찰 포인트</h3>
+<ol>
+<li><strong>정적 요청</strong>은 Web Server의 Static Handler에서 멈춤 — 패킷이 Tomcat까지 안 감, Tomcat 버퍼도 비어있음</li>
+<li><strong>Request Buffer</strong> (왼쪽 파란 박스): 동적 요청 시 Header가 먼저 채워지고, POST면 Body까지 적재</li>
+<li><strong>Response Buffer</strong> (오른쪽 주황 박스): 서블릿/템플릿 실행 후 Status+Headers, 그 다음 Body가 차례로 채워짐. 이때 <code>uncommitted</code> 상태 유지</li>
+<li><strong>COMMITTED 배지</strong>가 초록으로 바뀌는 순간이 진짜 응답이 소켓으로 흘러나가는 시점 — 그 전엔 헤더 변경 가능</li>
+<li><strong>패킷에 표시되는 정보</strong>: 요청 패킷엔 들고 가는 <code>🍪 JSESSIONID...</code>, 응답 패킷엔 <code>🍪 Set: ...</code> (Set-Cookie) 또는 <code>sid: ...</code> (기존 세션 식별자)</li>
+<li><code>POST /api/users</code>를 로그인 안 한 상태에서 누르면 → AuthFilter에서 차단되어 <strong>빨간 401 패킷</strong>이 돌아옴 (Servlet/Template/비즈니스 로직 모두 미실행). 로그인 후 다시 누르면 정상 처리됨</li>
+<li><code>GET /login-form</code>을 두 번 눌러보면 첫 번째는 <code>login.mustache</code> <strong>컴파일 + 캐시 저장</strong> (초록 <code>compiled</code> 배지 점등), 두 번째는 <strong>캐시 히트</strong> 로그</li>
+<li><code>POST /login</code> 시: 서버 Session Store에 <strong>즉시</strong> 세션 생성, 응답 헤더에 <code>Set-Cookie</code> 표시되지만 브라우저 쿠키 영역은 <strong>분홍 패킷(🍪)이 브라우저에 도착한 순간</strong>에 비로소 채워짐</li>
+<li><strong>로그인 후 요청</strong>의 Request Buffer Header 영역엔 <code>Cookie: JSESSIONID=...</code> 라인이 자동 첨부됨</li>
+<li><strong>Thread Pool</strong>의 T0~T7 중 하나가 잠깐 초록색(busy)이 됐다가 다시 회색(idle)으로</li>
+<li><strong>⏸ 일시정지 버튼</strong> 또는 <strong>Space 키</strong>로 애니메이션 중간에 일시정지·재개 가능 (애니메이션 중에도 일시정지 클릭 가능)</li>
+</ol>
+<hr>
+<h2 id="13">13. 부하 상황별 클라이언트(브라우저) 경험</h2>
+<p>Tab 2 시뮬레이터의 시나리오 프리셋과 매칭됩니다. 서버 측면의 메트릭은 시뮬레이터에서 보고, 같은 상황에서 <strong>클라이언트(브라우저)에선 무엇이 보이는지</strong>를 정리합니다.</p>
+<h3 id="131">13.1 정상 운영 (여유 상태)</h3>
+<blockquote>
+<p>시뮬레이터 프리셋: <strong>여유</strong> — 4 users / 8 threads / queue 4</p>
+</blockquote>
+<p><strong>서버 상태</strong>
+- Thread Pool: 30~50% 사용
+- Queue: 항상 비어있음
+- 거부 0</p>
+<p><strong>브라우저 동작</strong>
+- 응답시간: <code>proc time</code> 그대로 (예: 500ms)
+- HTTP 상태: 항상 <code>200 OK</code>
+- 페이지/리소스가 빠르게 로드, 스피너 잠깐 보이고 끝
+- 모든 AJAX 호출 정상 성공</p>
+<p><strong>사용자 인식</strong>: "빠르네 / 정상이네"</p>
+<hr>
+<h3 id="132">13.2 풀 포화 직전 (큐 대기 없음)</h3>
+<blockquote>
+<p>시뮬레이터 프리셋: <strong>포화 직전</strong> — 8 users / 6 threads</p>
+</blockquote>
+<p><strong>서버 상태</strong>
+- Thread Pool: 90~100% (활성 스레드 5~6개 / 6)
+- Queue: 거의 비어있다가 가끔 1~2개
+- 거부 0</p>
+<p><strong>브라우저 동작</strong>
+- 응답시간: <code>proc time</code> + 가끔 짧은 큐 대기 (대부분 500ms, 가끔 700~800ms)
+- HTTP 상태: 모두 <code>200 OK</code>
+- 페이지 정상 로드, <strong>체감 차이는 거의 없음</strong>
+- 단, 응답시간의 표준편차가 커짐 (p99이 평균보다 살짝 높아지기 시작)</p>
+<p><strong>사용자 인식</strong>: 일반 사용자는 못 느낌. 민감한 사용자만 "오늘 좀 답답한가?"</p>
+<hr>
+<h3 id="133-latency">13.3 큐 대기 발생 (Latency 악화)</h3>
+<blockquote>
+<p>시뮬레이터 프리셋: <strong>큐 대기 발생</strong> — 12 users / 6 threads / queue 6</p>
+</blockquote>
+<p><strong>서버 상태</strong>
+- Thread Pool: 항상 100% (6/6)
+- Queue: 채워졌다 비워졌다 반복, 평균 3~6개 점유
+- 거부 0 또는 극소수</p>
+<p><strong>브라우저 동작</strong>
+- 응답시간:
+  - 새 요청은 큐에 들어가 대기 → <strong>큐 대기 시간 + 처리 시간</strong>
+  - 500ms 처리가 1.5초, 2초, 3초까지 늘어남
+  - p95이 1초 넘어가고 p99은 2~3초
+- HTTP 상태: 여전히 <code>200 OK</code> (단지 느릴 뿐)
+- 브라우저 스피너가 오래 돌아감 → 사용자가 "왜 안 떠?" 함</p>
+<p><strong>브라우저 특유의 연쇄 효과</strong>
+- 브라우저는 <strong>같은 호스트로 최대 6개 연결</strong>(HTTP/1.1 기본)만 동시 사용
+- 그 6개가 모두 느린 응답을 기다리면 <strong>다른 새 요청은 브라우저 내부 큐에서 또 대기</strong>
+- 페이지 로드 시 여러 리소스(JS, CSS, API)가 같이 가져와지는데, 일부가 막히면 페이지 전체 렌더가 멈춘 듯 보임
+- AJAX 호출 여러 개를 보낸 SPA에선 일부는 빨리 오고 일부는 늦게 와서 화면이 chunked로 나타남</p>
+<p><strong>사용자 인식</strong>: "느리다 / 버벅거린다 / 멈춘 것 같다"</p>
+<hr>
+<h3 id="134-connection-refused">13.4 큐 오버플로우 (Connection Refused 폭주)</h3>
+<blockquote>
+<p>시뮬레이터 프리셋: <strong>거부 폭주</strong> — 20 users / 2 threads / queue 2</p>
+</blockquote>
+<p><strong>서버 상태</strong>
+- Thread Pool: 100% (2/2)
+- Queue: 100% (2/2)
+- 거부 카운터 계속 증가</p>
+<p><strong>서버가 거부할 때 일어나는 일</strong> (두 가지 경로)</p>
+<p><strong>(a) TCP 레벨 거부 (acceptCount 초과)</strong>
+- Tomcat의 OS 백로그 큐도 꽉 차서 <strong>소켓 자체를 거부</strong> (RST 또는 connection timeout)
+- 브라우저에 <code>net::ERR_CONNECTION_REFUSED</code> 표시
+- "사이트에 연결할 수 없음" 류 페이지</p>
+<p><strong>(b) 502 / 503 응답 (Web Server 또는 LB가 못 견딤)</strong>
+- 앞단 Nginx/Apache가 백엔드 timeout 또는 unavailable 감지
+- 클라이언트에게 <code>502 Bad Gateway</code> 또는 <code>503 Service Unavailable</code> 반환
+- <code>Retry-After</code> 헤더에 권장 재시도 시간이 들어갈 수도 있음</p>
+<p><strong>브라우저 동작</strong>
+- 일부 요청은 통과 (200 OK), 일부는 실패 (502/503/connection refused)
+- <strong>무작위로</strong> 성공/실패가 섞임 → 디버깅 가장 어려운 상태
+- SPA의 경우: 페이지 자체는 떴는데 일부 API만 빨갛게 깨짐
+- 사용자가 새로고침 누르면 또 일부만 됨</p>
+<p><strong>사용자 인식</strong>: "사이트가 망가졌다 / 어떤 페이지는 되고 어떤 페이지는 안 된다"</p>
+<p><strong>브라우저는 자동 재시도하지 않음</strong> — 사용자가 새로고침해야 함 (단, 일부 fetch 라이브러리는 자체 재시도 로직 가질 수 있음)</p>
+<hr>
+<h3 id="135">13.5 슬로우 쿼리 시나리오</h3>
+<blockquote>
+<p>시뮬레이터 프리셋: <strong>슬로우 쿼리</strong> — 12 users / 6 threads / 30% slow</p>
+</blockquote>
+<p><strong>서버 상태</strong>
+- 슬로우 요청 (proc time × 3 = 1.5초 정도)이 Thread Pool 자리를 오래 점유
+- 정상 빠른 요청들도 그 동안 남은 스레드에서 처리 → 가용 스레드가 사실상 적어짐
+- 큐 대기 발생, 일부 거부</p>
+<p><strong>브라우저 동작</strong>
+- <strong>응답시간 분포가 두 봉우리(bimodal)</strong>
+  - 운 좋은 요청: 평상시 속도 (~500ms)
+  - 운 나쁜 요청: 슬로우 쿼리를 만난 큐 자리에 들어감 → 2~5초
+- p50은 정상, <strong>p95/p99이 극단적</strong>
+- HTTP 상태: 대부분 200 OK, 일부 timeout 가능</p>
+<p><strong>사용자 인식이 가장 답답한 시나리오</strong>
+- "어떨 땐 빠르고 어떨 땐 느리다"
+- 새로고침하면 잘 됨 → 재현이 안 되는 듯 보임
+- 사실은 운에 따라 다른 큐 자리에 들어가는 것
+- 운영자가 "재현이 안 돼요" 듣는 가장 흔한 케이스</p>
+<hr>
+<h3 id="136">13.6 추가 알아두면 좋은 브라우저 동작</h3>
+<p><strong>Connection Limit (호스트당 동시 연결 수)</strong>
+- HTTP/1.1: 보통 6개 (브라우저별 다름)
+- HTTP/2: 1개 연결로 multiplexing (해결됨)
+- HTTP/3 (QUIC): UDP 기반, 더 효율적</p>
+<p><strong>자동 재시도?</strong>
+- 브라우저는 일반적으로 <strong>자동 재시도하지 않음</strong>
+- GET이라도 자동 재시도 안 함 (idempotent여도)
+- 단, DNS 실패나 일부 네트워크 에러는 자동 복구 시도 가능
+- 페이지 로드 중 일부 리소스 실패 → 페이지의 다른 부분은 정상</p>
+<p><strong>HTTP Timeout</strong>
+- 브라우저 기본: 보통 무한 (또는 매우 김, 분 단위)
+- OS 레벨 TCP timeout: ~75초 ~ 수분
+- <code>fetch()</code> API: 기본 timeout 없음 (AbortController로 설정 가능)
+- 프록시/CDN: 보통 30~60초 timeout 설정</p>
+<p><strong>Keep-Alive 영향</strong>
+- HTTP/1.1은 기본 keep-alive → 같은 호스트에 여러 요청 시 연결 재사용
+- 연결이 막혀있으면 다음 요청도 그 연결에 묶임
+- 슬로우 쿼리가 keep-alive 연결을 점유하면 같은 연결의 다음 요청도 대기</p>
+<p><strong>캐싱 / Service Worker 영향</strong>
+- 정적 리소스는 브라우저 캐시 사용 → 서버 폭주와 무관하게 빠름
+- Service Worker로 stale-while-revalidate 패턴 쓰면 오프라인이나 폭주 시 캐시로 응답 가능</p>
+<hr>
+<h3 id="137">13.7 운영 대응 (서버측에서 클라이언트 경험 개선)</h3>
+<table>
+<thead>
+<tr>
+<th>증상</th>
+<th>대응</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>큐 대기로 응답 느림</td>
+<td><code>maxThreads</code> 증가 (메모리 한도 내), 비동기 처리 도입</td>
+</tr>
+<tr>
+<td>Connection Refused 발생</td>
+<td><code>acceptCount</code> 늘리거나 LB로 분산, scale-out</td>
+</tr>
+<tr>
+<td>슬로우 쿼리가 풀 점유</td>
+<td>쿼리 최적화, 별도 풀 분리, 서킷 브레이커</td>
+</tr>
+<tr>
+<td>p99 레이턴시 높음</td>
+<td>Slow query 추적, DB 인덱스, 캐시 도입</td>
+</tr>
+<tr>
+<td>503 응답 시 클라이언트가 그냥 실패</td>
+<td>Nginx에서 <code>Retry-After</code> 헤더 추가, 클라이언트 재시도 로직</td>
+</tr>
+<tr>
+<td>일부 요청만 실패하는 미스터리</td>
+<td>부하 시점 메트릭 확인 (RPS, p99, queue depth) — bimodal 분포 의심</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>정리: 클라이언트가 보는 증상은 <strong>(1) 같이 느림</strong>, <strong>(2) 일부만 실패</strong>, <strong>(3) 가끔만 느림</strong> 셋 중 하나로 압축된다. 그 중 (3)이 가장 진단이 어렵다.</p>
+</blockquote>
+<hr>
+<h2 id="_3">부록: 핵심 용어 정리</h2>
+<table>
+<thead>
+<tr>
+<th>용어</th>
+<th>한 줄 설명</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Servlet</td>
+<td>Java로 HTTP 요청을 처리하는 클래스</td>
+</tr>
+<tr>
+<td>JSP</td>
+<td>HTML에 Java를 섞은 것. 결국 서블릿으로 컴파일됨</td>
+</tr>
+<tr>
+<td>Container</td>
+<td>서블릿 생명주기를 관리하는 런타임 (= Tomcat)</td>
+</tr>
+<tr>
+<td>Connector</td>
+<td>외부 통신을 받아 내부 Engine으로 넘기는 컴포넌트</td>
+</tr>
+<tr>
+<td>Engine / Host / Context</td>
+<td>Tomcat의 계층 구조 (서버 → 가상호스트 → 웹앱)</td>
+</tr>
+<tr>
+<td>Filter</td>
+<td>서블릿 호출 전후로 끼어드는 인터셉터</td>
+</tr>
+<tr>
+<td>web.xml</td>
+<td>URL→서블릿 매핑·필터 등록 설정 파일</td>
+</tr>
+<tr>
+<td>AJP</td>
+<td>Apache↔Tomcat 통신 바이너리 프로토콜</td>
+</tr>
+<tr>
+<td>JSESSIONID</td>
+<td>Tomcat이 세션 식별용으로 발급하는 쿠키 이름</td>
+</tr>
+<tr>
+<td>WAR</td>
+<td>웹앱 배포 단위 (Tomcat의 webapps/ 폴더에 떨어뜨림)</td>
+</tr>
+</tbody>
+</table>
+  </article>
+</div>
+
+<!-- ======= OSD floating bar (injected) ======= -->
+<div id="osd-bar" role="navigation" aria-label="블로그 네비게이션">
+  <a href="../../index.html" class="osd-bar__brand" title="블로그 홈">◆ Diary</a>
+  <div class="osd-bar__title">Apache + Tomcat 아키텍처 가이드</div>
+  <div class="osd-bar__actions">
+    <a href="../../index.html">← 목록</a>
+    <button type="button" id="osd-theme-toggle" aria-label="테마 전환">테마</button>
+  </div>
+</div>
+<!-- ======= /OSD floating bar ======= -->
+
+<script>
+  (function(){
+    function wrap(){
+      var bar = document.getElementById('osd-bar');
+      var wrapper = document.createElement('div');
+      wrapper.id = 'osd-content-wrapper';
+      wrapper.style.cssText = 'transition: filter .25s;';
+      var nodes = Array.prototype.slice.call(document.body.childNodes);
+      nodes.forEach(function(n){ if (n === bar) return; wrapper.appendChild(n); });
+      document.body.appendChild(wrapper);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wrap, { once: true });
+    } else { wrap(); }
+  })();
+</script>
+<script>
+  (function(){
+    var btn = document.getElementById('osd-theme-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      var cur = document.documentElement.getAttribute('data-osd-theme') || 'dark';
+      var next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-osd-theme', next);
+      try { localStorage.setItem('blog-theme', next); } catch(e){}
+    });
+  })();
+</script>
+</body>
+</html>
