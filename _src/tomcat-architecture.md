@@ -1,632 +1,237 @@
-# Apache + Tomcat 아키텍처 가이드
+# 아파치 아저씨와 톰캣 주방의 비밀 — 어린이를 위한 웹 서버 모험기
 
-> 시뮬레이터(`tomcat-simulator.html`)와 함께 보는 학습 자료
-
----
-
-## 0. 한눈에 보는 큰 그림
-
-```
-[Browser]  ──HTTP──▶  [Apache HTTP Server]  ──AJP──▶  [Tomcat]  ──▶  [Servlet/JSP]
-                            │                            │
-                            ├─ 정적 (html/css/img)        ├─ Connector
-                            │  → 직접 응답                 ├─ Thread Pool
-                            │                            ├─ web.xml (Filter)
-                            └─ 동적 (.jsp, /api/*)        ├─ Servlet
-                               → Tomcat 위임              └─ Session Store
-```
-
-핵심 통찰 한 줄: **Apache는 빠르게 정적 파일을 쏴주는 데 특화되어 있고, Tomcat은 Java 코드(Servlet)를 실행하는 컨테이너다.** 둘을 같이 쓰는 이유는 "정적은 Apache, 동적은 Tomcat"으로 역할을 나눠 효율을 끌어올리기 위함이다.
+> 내가 누른 버튼 하나가 어떻게 서버까지 갔다 다시 돌아올까? 아파치 안내 아저씨와 톰캣 주방의 요리사들을 따라가며, 정적 파일·동적 요리·세션·쿠키·스레드풀까지 동화처럼 풀어낸 그림책 같은 가이드.
 
 ---
 
-## 1. 클라이언트 (Browser)
 
-브라우저가 HTTP Request를 만들 때 들어가는 것들:
+## PROLOGUE — 인터넷이라는 도시, 그리고 'WebSite 식당'
 
-```
-GET /users.jsp HTTP/1.1            ← Request Line
-Host: app.example.com              ← Headers
-User-Agent: Mozilla/5.0...
-Cookie: JSESSIONID=ABC123...       ← 자동 첨부되는 쿠키
-Accept: text/html
+> _왼쪽은 안내실 Apache, 오른쪽은 주방 Tomcat. 둘 사이엔 비밀 통로가 있대요._
 
-(body — POST일 때만)
-username=admin&password=...
-```
+옛날 옛날, 인터넷이라는 거대한 도시가 있었어요. 이 도시에는 수천 개의 가게가 줄지어 있었지요. 어떤 가게는 '네이버'라는 이름표를, 어떤 가게는 '유튜브', 또 어떤 가게는 '학교 알림장'이라는 이름표를 달고 있었답니다. 우리는 이 가게들을 웹사이트라고 불렀어요.
 
-브라우저는 도메인에 저장된 쿠키를 **자동으로** 매 요청마다 첨부한다. 이게 세션 유지의 출발점.
+그 중 가장 인기 많은 가게는 'WebSite 식당'이었어요. 손님들은 매일 핸드폰이나 컴퓨터를 들고 이 식당으로 몰려왔어요. 그런데 식당이 너무 바빠서, 한 사람이 모든 일을 다 할 수가 없었답니다. 그래서 두 명의 일꾼이 힘을 합쳤어요.
 
----
+한 명은 식당 앞문에서 손님을 맞는 Apache 아저씨, 또 한 명은 주방에서 요리를 만드는 Tomcat 요리장이었어요. 둘은 너무나 친한 친구였고, 둘 사이에는 손님들은 알지 못하는 비밀 통로까지 있었답니다. 자, 이제 이 두 친구의 이야기를 시작해볼까요?
 
-## 2. Web Server (Apache / Nginx)
 
-### 2.1 용어 정리 — Reverse Proxy의 두 가지 의미
-"Reverse Proxy"라는 단어는 두 층위에서 쓰여서 헷갈리기 쉽다.
+## 1장 — 손님이 식당 문을 두드린 순간
 
-- **(a) 역할로서의 Reverse Proxy**: WAS 앞단에 서서 클라이언트 요청을 받아 적절한 백엔드로 전달하는 **서버 전체의 역할**. Apache/Nginx 서버 자체가 이 역할을 한다.
-- **(b) 디렉티브/모듈로서의 Proxy Pass**: 그 서버 안에서 실제로 "이 URL은 저 백엔드로 보낸다"를 정의하는 **설정 메커니즘**. Apache의 `mod_proxy_ajp`, Nginx의 `proxy_pass` 디렉티브가 이에 해당.
+> _손님이 가게 주소(URL)를 외치며 식당 앞에 도착합니다._
 
-즉 **(a)는 큰 그림에서의 역할**이고 **(b)는 그 역할을 실제로 구현하는 작은 부품**이다. 시뮬레이터에서는 헷갈림을 피하려고 (b)를 **"Proxy Pass"**라고 부른다.
+어느 화창한 토요일 아침, 김초딩이 컴퓨터 앞에 앉아 네이버.com을 입력했어요. 엔터를 탁! 하고 누르는 순간, 김초딩의 컴퓨터 안에 있던 크롬 친구(Browser)가 잽싸게 일어났어요.
 
-```
-                   ┌─────────────────────────────────────────┐
-                   │ Web Server (= Reverse Proxy 역할)        │
-[Browser] ──HTTP──▶│  ┌─────────┐ ┌────────────┐ ┌────────┐  │──▶ [WAS]
-                   │  │Listener │ │ Static     │ │Proxy   │  │
-                   │  │         │ │ Handler    │ │Pass(b) │  │
-                   │  └─────────┘ └────────────┘ └────────┘  │
-                   └─────────────────────────────────────────┘
-                                  ↑(a) 전체가 Reverse Proxy
-```
+크롬 친구는 손에 작은 쪽지 한 장을 들고 있었어요. 거기에는 이렇게 적혀 있었지요:
 
-### 2.2 역할 (구현체 무관)
-- **Listener**: 80/443 포트에서 TCP 연결 수락
-- **Request Router**: 받은 URI를 설정된 매칭 규칙으로 분기
-- **Static Handler**: `DocumentRoot` 폴더에서 파일을 직접 응답
-- **Proxy Pass**: 매칭된 URL을 백엔드(WAS)로 포워딩 — 이게 곧 Reverse Proxy 동작의 핵심
+손님이 들고 간 주문서GET /menu/cake.jpg HTTP/1.1
+Host: website.com
+Cookie: JSESSIONID=ABC123
+User-Agent: 크롬-9.0
 
-### 2.3 Proxy Pass 구현체 매핑
-"정적이냐 동적이냐"는 **사실 Web Server 입장에선 모르는 개념**이다. 설정 파일의 매칭 규칙만 본다. 매칭되면 백엔드로 보내고(Proxy Pass), 매칭 안 되면 자기가 정적 파일로 응답한다(Static Handler).
+이 쪽지가 바로 HTTP 요청(Request)이에요. 마치 우리가 식당에 가서 "케이크 메뉴판 좀 보여주세요!" 하고 말하는 것과 똑같아요. 다만 크롬 친구는 사람보다 훨씬 빨라서, 1초도 안 되어 식당 앞에 도착했답니다.
 
-| Web Server | Proxy Pass 구현 | 백엔드 프로토콜 |
-|---|---|---|
-| Apache | `mod_proxy_ajp` | AJP (8009) |
-| Apache | `mod_proxy_http` | HTTP (8080) |
-| Apache | `mod_jk` (legacy) | AJP |
-| Nginx | `proxy_pass` directive | HTTP / FastCGI / uwsgi |
+🧒 크롬 친구저기요— Apache 아저씨? 케이크 사진 한 장만 주세요!
 
-설정 예시 (Apache, Nginx 둘 다):
-```apache
-# Apache
-ProxyPass        /api/    ajp://localhost:8009/api/
-ProxyPassMatch   "\.jsp$" ajp://localhost:8009
-```
-```nginx
-# Nginx
-location /api/    { proxy_pass http://localhost:8080; }
-location ~ \.jsp$ { proxy_pass http://localhost:8080; }
-```
-이 매칭 규칙에 안 걸리는 URL은 `DocumentRoot` / `root`에서 파일로 직접 응답.
 
-### 2.4 왜 Web Server를 WAS 앞에 두나?
-- C로 짠 Apache/Nginx가 파일 I/O와 `sendfile` syscall에 매우 빠름
-- Tomcat을 안 거치므로 Java 힙·GC·스레드 풀 부담 0
-- SSL/TLS 종료, 로드 밸런싱, 캐싱, 압축 등을 Web Server 레벨에서 처리
-- 결과: 트래픽의 절반 이상이 Tomcat에 닿지 않아 안정성·성능 ↑
+## 2장 — Apache 아저씨의 두 갈래 길
 
-> Spring Boot는 임베디드 Tomcat을 jar에 포함하므로 Web Server 없이도 동작한다. 대신 운영 환경에선 보통 그 앞에 Nginx를 둔다.
+> _Apache는 주문을 보고 1초 안에 결정해요. '이건 내가 줄 수 있어!' 아니면 '주방에 맡겨야겠어!'_
 
----
+Apache 아저씨는 식당의 안내 직원이에요. 손님이 오면 가장 먼저 만나는 사람이지요. 아저씨의 일은 단순하지만 정말 중요해요.
 
-## 4. Tomcat 내부 구조
+주문서를 받으면 아저씨는 잠깐 안경을 추켜올리며 생각해요. "이 주문, 내가 직접 줄 수 있는 건가? 아니면 주방에 부탁해야 하나?"
 
-Tomcat은 크게 다음 계층으로 구성된다.
+🍰 첫 번째 길 — 정적 파일(Static): 케이크 사진(cake.jpg), 메뉴판 디자인(style.css), 가게 로고(logo.png)처럼 이미 만들어진 것이라면, Apache 아저씨가 진열장에서 척! 꺼내 손님에게 바로 건네줘요. 정말 빠르죠.
 
-```
-Server
- └── Service
-      ├── Connector (요청 받기)
-      └── Engine
-           └── Host (가상호스트)
-                └── Context (웹앱 = WAR)
-                     └── Wrapper (Servlet 1개)
-```
+🔥 두 번째 길 — 동적 콘텐츠(Dynamic): 그런데 손님이 "제 장바구니 보여주세요" 또는 "오늘의 추천 메뉴 알려주세요" 같은 걸 물으면 이야기가 달라져요. 이건 손님마다, 시간마다, 그날의 기분(!)마다 다르거든요. 매번 새로 만들어야 해요. 그래서 Apache 아저씨는 이 주문서를 비밀 통로에 슬쩍 흘려보내요. 어디로? 바로 옆 가게의 친구, Tomcat 요리장한테요.
 
-### 4.1 Connector — Tomcat의 입출구
-Connector는 **요청을 받는 일**과 **응답을 내보내는 일**을 모두 담당한다. 그래서 안에는 두 개의 버퍼가 쌍으로 존재한다.
+💡 왜 둘이 같이 일할까?Apache는 케이크 사진 같은 걸 엄청 빠르게 꺼내주는 데 천재예요. 하지만 "오늘의 추천 메뉴를 새로 만들어줘" 같은 건 못해요. 반대로 Tomcat은 Java라는 마법 언어로 새 요리를 척척 만들지만, 사진 같은 걸 빠르게 꺼내는 건 Apache보다 느려요. 그래서 둘이 짝꿍이 되면 가장 빠른 식당이 된답니다.
 
-```
-┌──────── Connector (Coyote 계층) ────────┐
-│                                         │
-│   Socket ──▶ [Request Buffer]  ──▶ Request 객체 ─┐
-│                ├ Headers 영역                    │
-│                └ Body 영역                    Servlet 실행
-│                                                  │
-│   Socket ◀── [Response Buffer] ◀── Response 객체 ┘
-│                ├ Status + Headers 영역
-│                └ Body 영역 (기본 8KB)
-│                                         │
-└─────────────────────────────────────────┘
-```
 
-**Request Buffer**
-- 소켓에서 읽은 바이트를 헤더/바디로 파싱
-- Header 영역: Request Line, 일반 헤더, Cookie 헤더
-- Body 영역: POST/PUT 등의 페이로드 (GET은 비어있음)
+## 3장 — 둘만 아는 비밀 통로, AJP
 
-**Response Buffer (기본 8KB)**
-- 서블릿이 `response.getWriter().write(...)` 호출해도 즉시 클라이언트로 안 나감
-- 일단 이 버퍼에 쌓임
-- 버퍼가 차거나 `flushBuffer()` 호출 시 → **committed** 상태로 전환 → 그제서야 소켓으로 흘러나감
-- **committed 후엔 헤더/상태코드 변경 불가** (이미 첫 청크가 나갔으므로)
+> _손님은 정문(:80)으로, 비밀 통로(:8009 AJP)는 Apache와 Tomcat만 쓰는 길._
 
-```java
-response.setBufferSize(16384);     // 버퍼 크기 변경 (committed 전에만)
-response.getWriter().write("hi");  // 버퍼에 쌓임 (아직 클라이언트 X)
-response.setHeader("X-Foo","v");   // ← 가능 (uncommitted)
-response.flushBuffer();            // 강제로 비워서 전송 → committed
-response.setStatus(500);           // ← 무시됨! 이미 committed
-response.resetBuffer();            // body만 비우기 (committed 전)
-response.reset();                  // 헤더까지 다 비우기 (committed 전)
-```
+Apache와 Tomcat 사이엔 둘만 알고 있는 통로가 있어요. 이 통로의 이름은 AJP(에이제이피, Apache JServ Protocol)예요. 길고 어려운 이름이지만, 그냥 둘만의 비밀 출입구라고 생각하면 돼요.
 
-**왜 응답 버퍼가 필요한가?** HTTP는 헤더 → 바디 순서로 보내야 한다. 첫 바이트가 나가는 순간 헤더는 확정되어 되돌릴 수 없다. 그래서 Tomcat은 응답을 일단 버퍼에 모아두고, 그 동안엔 서블릿이 "역시 에러로 바꿔야겠다", "헤더 하나 추가해야겠다" 같은 변경을 할 수 있게 해준다.
+왜 비밀 통로가 필요할까요? 정문으로 가도 되는 거 아닌가요?
 
-**버퍼는 그것만이 아니다**
-```
-서블릿 PrintWriter (내부 버퍼)
-   ↓
-Http11OutputBuffer (Tomcat, 기본 8KB) ← committed/uncommitted 개념
-   ↓
-OS TCP Send Buffer (커널, 64KB~256KB)
-   ↓
-NIC → 네트워크
-```
-write() 했다고 즉시 클라이언트가 받는 게 아니다. 3~4 계층의 버퍼를 거친다.
+이유는 두 가지예요. 첫째, 훨씬 빨라요. 두 친구가 일반 말이 아닌 둘만의 짧은 손짓으로 대화하니까요. 둘째, 안전해요. 일반 손님은 이 통로를 들어올 수 없거든요. 만약 손님이 직접 Tomcat한테 가서 "이런 거 해줘!" 하고 시키려고 해도, 통로 입구에서 "미안, 너는 Apache가 데려온 사람이 아니라 들여보낼 수 없어" 하고 막혀요.
 
-**Connector 구현체**
-- **NIO (기본)**: 한 스레드가 여러 연결을 Selector로 폴링
-- **APR**: Apache Portable Runtime (C 네이티브) — 가장 빠름
-- **NIO2**: 비동기 I/O
+요즘은 AJP 대신 그냥 평범한 HTTP로 통하기도 해요(특히 클라우드에서요). 어떤 방식을 쓰든 핵심은 같아요: Apache와 Tomcat은 둘만의 약속된 길로 대화한다는 거예요.
 
-### 4.2 Thread Pool — 가장 중요한 개념
-Tomcat은 기본적으로 **1 Request = 1 Thread** 모델.
+Apache의 비밀 통로 설정 (예시)<Location /api/>
+  ProxyPass ajp://tomcat-server:8009/api/
+</Location>
 
-| 파라미터 | 의미 | 기본값 |
-|---|---|---|
-| `maxThreads` | 동시에 처리 가능한 최대 요청 수 | 200 |
-| `minSpareThreads` | 항상 대기시키는 최소 스레드 수 | 10 |
-| `acceptCount` | 풀이 꽉 찰 때 OS 큐 대기 크기 | 100 |
-| `connectionTimeout` | 연결 유지 타임아웃 | 20000ms |
+"/api/"로 시작하는 주문은 모두 Tomcat 친구(8009번 출입구)한테 보내!" 라는 뜻이에요.
 
-동작 흐름:
-1. 요청 도착 → Connector가 받음
-2. 풀에 idle 스레드 있으면 즉시 할당
-3. 풀이 꽉 차면 **acceptCount 큐**에 대기
-4. 큐도 꽉 차면 → **Connection Refused** (클라이언트가 에러 받음)
 
-> **운영 팁**: `maxThreads`를 무작정 키우면 메모리·컨텍스트 스위칭 비용으로 오히려 느려진다. DB Connection Pool 크기와 균형을 맞춰야 함.
+## 4장 — 주방의 첫 번째 문 — Connector
 
-### 4.3 요청·응답 처리 순서 요약
-```
-1. 소켓에서 바이트 도착
-2. Connector의 Request Buffer가 Header → Body 순으로 파싱
-3. Thread Pool에서 Worker 스레드 할당
-4. web.xml 필터 체인 → 서블릿 service() 호출
-5. 서블릿이 Response 객체에 write — Response Buffer에 쌓임
-6. flushBuffer() 또는 버퍼 full → committed → 소켓으로 전송
-7. Worker 스레드는 Pool로 반환
-```
+> _주방 창문이 바로 Connector. 주문서가 들어오면 통역사가 Java 언어로 바꿔줘요._
 
----
+비밀 통로를 지나 Tomcat 주방에 들어가면 가장 먼저 만나는 건 주방 창문이에요. 이 창문의 이름이 Connector지요.
 
-## 5. web.xml — "문지기"
+창문 옆에는 아주 똑똑한 통역사가 한 명 서 있어요. 왜 통역사가 필요할까요? 손님이 들고 온 주문서는 HTTP어로 쓰여 있는데, 주방의 요리사들은 Java어밖에 못 알아듣거든요.
 
-`web.xml` (또는 `@WebServlet` 어노테이션)은 **어떤 URL을 어떤 서블릿이 처리하는지**를 정의하는 배치 기술자.
+통역사는 주문서를 척 받아들고는 마법처럼 바꿔놓아요:
 
-```xml
-<web-app>
-  <!-- 필터 등록 -->
-  <filter>
-    <filter-name>EncodingFilter</filter-name>
-    <filter-class>com.example.EncodingFilter</filter-class>
-  </filter>
-  <filter-mapping>
-    <filter-name>EncodingFilter</filter-name>
-    <url-pattern>/*</url-pattern>
-  </filter-mapping>
+HTTP어 → Java어 변신입력 (HTTP): GET /menu HTTP/1.1
+         Host: website.com
+         Cookie: JSESSIONID=ABC123
 
-  <!-- 서블릿 등록 -->
-  <servlet>
-    <servlet-name>LoginServlet</servlet-name>
-    <servlet-class>com.example.LoginServlet</servlet-class>
-  </servlet>
-  <servlet-mapping>
-    <servlet-name>LoginServlet</servlet-name>
-    <url-pattern>/login</url-pattern>
-  </servlet-mapping>
-</web-app>
-```
+출력 (Java): HttpServletRequest request 객체 한 개
+         ├ request.getMethod()  → "GET"
+         ├ request.getPath()    → "/menu"
+         └ request.getCookie()  → "ABC123"
 
-매칭 우선순위:
-1. **Exact match**: `/login`
-2. **Path prefix**: `/api/*`
-3. **Extension match**: `*.jsp`
-4. **Default**: `/` (DefaultServlet이 처리)
+이제 주방의 누구든 이 request 객체를 보면 손님이 뭘 원하는지 알 수 있어요. 통역 끝!
 
----
+📌 한 가지 더Connector는 동시에 여러 개를 둘 수 있어요. "손님 직접 문"(8080번 창문)과 "Apache 비밀 통로"(8009번 창문)을 둘 다 열어둘 수도 있죠. 큰 식당의 출입구가 여러 개 있는 것처럼요.
 
-## 6. Filter Chain
 
-서블릿 실행 **전후**로 끼어드는 인터셉터들. 책임 사슬 패턴.
+## 5장 — 요리사 군단 — Thread Pool
 
-```
-Request ─▶ EncodingFilter ─▶ AuthFilter ─▶ LoggingFilter ─▶ Servlet ─▶ (역순 응답)
-```
+> _주방엔 요리사 10명이 항상 대기. 11번째 손님부터는 줄을 서야 해요._
 
-전형적 용도:
-- **EncodingFilter**: UTF-8 강제
-- **AuthFilter**: 세션/토큰 검증, 미인증이면 401
-- **LoggingFilter**: 요청/응답 로깅
-- **CompressionFilter**: gzip
-- **CORS Filter**: 크로스 오리진 헤더
+창문을 지나면 진짜 주방이 펼쳐져요. 그곳엔 똑같이 생긴 요리사들이 줄지어 서 있답니다. 이 모임을 Thread Pool(스레드 풀)이라고 불러요.
 
-핵심: `chain.doFilter(req, res)`를 호출해야 다음 필터/서블릿으로 넘어간다.
+왜 "풀(Pool)"이라는 이름이 붙었을까요? 수영장처럼 항상 일정한 양의 요리사가 미리 준비되어 있다는 뜻이에요. 손님이 한 명 오면 풀에서 요리사 한 명이 "제가 갈게요!" 하고 나가요. 요리가 끝나면 다시 풀로 돌아와서 다음 손님을 기다려요.
 
----
+🍳 요리사 1김초딩 손님 주문 받았어요! 케이크 메뉴 만들어서 가져갑니다!
 
-## 7. Servlet 실행
+🍳 요리사 2저는 박학생 손님 담당! 장바구니 보여드릴게요!
 
-### 7.1 생명주기
-```
-init()    ─ 클래스당 1회 (서버 시작 또는 첫 요청 시)
-service() ─ 매 요청마다 호출 → doGet/doPost 등으로 분기
-destroy() ─ 종료 시 1회
-```
-**서블릿은 싱글톤**이다. 여러 요청이 동시에 같은 인스턴스의 `doGet()`을 호출하므로 **인스턴스 변수는 thread-unsafe**.
+그런데 만약 요리사가 10명인데 손님이 11명 오면 어떻게 될까요? 그러면 11번째 손님은 줄을 서서 기다려야 해요. 요리사 한 명이 일을 마치고 풀로 돌아올 때까지요.
 
-### 7.2 GET vs POST
-| 항목 | GET | POST |
-|---|---|---|
-| 파라미터 위치 | URL Query String | Request Body |
-| 멱등성 | O (여러 번 호출해도 같은 결과) | X |
-| 캐싱 | 가능 | 불가 |
-| 크기 제한 | URL 길이 (~2KB) | 매우 큼 (수 MB) |
-| 용도 | 조회, 검색 | 생성, 로그인, 파일 업로드 |
+그래서 식당 주인이 가장 고민하는 게 바로 "요리사를 몇 명으로 둘까?"예요.
 
-서블릿에서:
-```java
-protected void doGet(HttpServletRequest req, HttpServletResponse res) {
-    String q = req.getParameter("q");           // Query String에서
+너무 적으면 → 손님들이 줄을 너무 오래 서요 (식당이 느려요)너무 많으면 → 요리사들이 부딪쳐서 오히려 일이 느려져요 (CPU 과부하)
+
+⚠️ 함정요리사 한 명이 어쩌다 데이터베이스에서 재료를 가지러 갔는데 너무 오래 걸린다면? 그 요리사는 풀로 못 돌아와요. 이런 일이 10명 모두에게 벌어지면 — 주방이 멈춰버려요! "커넥션 풀 고갈"이라는 무서운 일이 일어난답니다.
+
+
+## 6장 — 주방 규칙집 — web.xml
+
+> _어떤 주문이 어떤 요리사한테 갈지, 모든 규칙이 이 책에 적혀 있어요._
+
+주방엔 아주 두꺼운 규칙집이 한 권 있어요. 이 책 이름이 web.xml이에요. 모든 요리사가 매일 아침 이 책을 한 번씩 펴봐요. 왜냐고요? 거기에 "어떤 주문은 누가 만들지"가 다 적혀 있거든요.
+
+예를 들어 이런 식이에요:
+
+web.xml — 규칙집의 한 페이지"/menu"      를 시키면 → MenuChef가 만들어
+"/login"     을 시키면 → LoginChef가 만들어
+"/cart/*"    안의 모든 거 → CartChef가 만들어
+"/api/order" 를 시키면 → OrderChef가 만들어
+
+그래서 주문서가 "/login"이라고 적혀 있으면 모두가 동시에 "아! 그건 LoginChef 담당이지!" 하고 알게 돼요. 길거리에서 누가 "피자 어디서 시켜요?" 하면 동네 사람들이 "피자집!" 하고 외치는 것처럼요.
+
+💡 요즘 트렌드요즘은 web.xml 책을 직접 쓰지 않아요. Spring Boot 같은 마법사가 코드 안에 @GetMapping("/menu") 같은 메모를 붙이면, 자동으로 규칙집이 만들어진답니다. 책은 여전히 있는데, 표지가 안 보일 뿐이에요.
+
+
+## 7장 — 품질 검사관들 — Filter
+
+> _요리사를 만나려면 검사관 여러 명을 줄줄이 통과해야 해요._
+
+주문이 요리사한테 가기 전에, 꼭 거쳐야 하는 사람들이 있어요. 바로 품질 검사관들, 즉 Filter(필터)예요. 검사관은 한 명이 아니라 줄줄이 여러 명이 서 있어요. 한 명씩 차례로 주문서를 확인해요.
+
+👮 검사관 1 (로그인 확인)이 손님 로그인 안 했네? 어디 가시려고요! 들어가시면 안 돼요!
+
+📚 검사관 2 (번역)주문서가 영어로 쓰여 있네. 한국어로 번역해서 통과시켜.
+
+📝 검사관 3 (기록)이 시간에 누가 뭘 시켰는지 일기장에 적어놓고 통과.
+
+만약 한 명이라도 ✕를 들면, 주문서는 요리사한테 가지 못해요. 손님은 "401 — 로그인 먼저 하세요!" 같은 답을 받게 돼요.
+
+검사관이 모두 ✓를 들면? 마침내 진짜 요리사를 만날 수 있어요!
+
+📌 응답이 나갈 때도 검사요리가 다 만들어져서 다시 손님한테 갈 때도 검사관들이 한 번 더 확인해요. "이 요리에 비밀 재료가 섞이진 않았나?" 같은 거요. 들어올 때와 나갈 때 모두 검사한다는 게 Filter의 특징이에요.
+
+
+## 8장 — 진짜 요리사 — Servlet
+
+드디어, 모든 관문을 통과한 주문서가 진짜 요리사한테 도착했어요. 이 요리사의 이름이 바로 Servlet(서블릿)이에요.
+
+Servlet은 손님의 주문(request)을 받아서, 빈 접시(response)에 요리를 담아 돌려주는 일을 해요. 자바로 쓰여진 짧은 레시피라고 생각하면 돼요:
+
+MenuChef.java — 메뉴 요리 레시피public class MenuChef extends HttpServlet {
+  protected void doGet(HttpServletRequest req,
+                       HttpServletResponse res) {
+    // 1. 손님이 누군지 확인
+    String name = req.getSession().getAttribute("name");
+
+    // 2. 메뉴 만들기
+    String html = "<h1>" + name + "님, 환영해요!</h1>";
+
+    // 3. 손님 접시에 담아 돌려보내기
+    res.getWriter().write(html);
+  }
 }
-protected void doPost(HttpServletRequest req, HttpServletResponse res) {
-    String user = req.getParameter("username"); // Body에서 (자동 파싱)
-    BufferedReader br = req.getReader();        // 원본 body 직접 읽기
-}
-```
+
+이게 끝이에요! 정말 간단하죠? 손님이 누군지 확인하고, 결과를 만들고, 다시 돌려보내는 거예요. 식당의 진짜 요리는 이 한 줄 한 줄 안에서 일어나요.
+
+그런데 우리가 평소 만드는 코드(Spring 같은 거)에는 이런 게 안 보이죠? 그건 마법사 Spring이 모든 걸 자동으로 만들어주기 때문이에요. 하지만 진짜 가장 깊은 곳에선 결국 이런 Servlet들이 일하고 있어요.
+
+💡 JSP는 뭐예요?JSP는 "HTML 안에 Java 마법을 섞은 종이"예요. 그런데 결국엔 Tomcat이 JSP를 읽어서 몰래 Servlet으로 바꿔서 돌려요. 즉, JSP는 "쉽게 쓴 Servlet"이라고 보면 돼요.
+
+
+## 9장 — 단골 손님 기억하기 — 쿠키와 세션
+
+> _손님 주머니엔 도장 카드(쿠키), 식당 안엔 손님 명단(세션)._
+
+김초딩이 식당에 와서 로그인을 했어요. 그런데 30초 후에 다시 "내 장바구니 보여줘" 하고 부탁했어요. 식당은 김초딩을 어떻게 기억할까요? 매번 주민번호를 물어볼 순 없잖아요.
+
+이 비밀은 두 가지 마법으로 풀려요.
+
+🎟️ 도장 카드 (Cookie): 김초딩이 처음 식당에 와서 로그인을 하면, Apache 아저씨가 도장 카드 한 장을 손에 쥐어 줘요. 카드에는 이상한 글자가 적혀 있어요 — 예: JSESSIONID=ABC123. 김초딩의 브라우저는 이 카드를 주머니에 잘 넣어두고, 다음에 올 때마다 자동으로 꺼내서 함께 들고 와요.
+
+📋 좌석 명단 (Session): 식당 안쪽엔 거대한 명단이 있어요. "ABC123 = 김초딩, 좋아하는 음식은 케이크, 장바구니에 음료수 한 개" 같은 정보가 적혀 있죠. 도장 카드만 보여주면 명단에서 김초딩의 정보를 1초 만에 찾을 수 있어요.
+
+🧒 김초딩 (다시 방문)(주머니에서 카드 꺼내며) ABC123 카드 있어요!
+
+👨‍🍳 Tomcat 요리장(명단 보고) 아! 김초딩 님 오랜만이세요. 장바구니에 음료수 한 개 있던 거 맞죠?
+
+⚠️ 명단이 너무 커지면?식당에 손님이 100만 명이면 명단도 100만 줄. 메모리가 폭발해요. 그래서 "30분 동안 안 오면 명단에서 지우자" 같은 규칙이 있어요. 이걸 세션 만료(timeout)라고 해요.
+
+💡 여러 식당이 같은 손님을 알아보려면?요즘은 식당이 여러 개 있고 손님이 어디 가도 같은 사람으로 알아봐야 해요. 이럴 땐 명단을 "중앙 명부소(Redis)"에 두거나, 도장 카드 자체에 정보를 담아요(JWT). 이건 더 큰 이야기지만, 출발점은 똑같아요 — 쿠키 + 어딘가의 명단.
+
+
+## 10장 — 새 메뉴가 도착했어요 — WAR 파일
+
+> _WAR 파일은 새 메뉴를 잔뜩 담은 상자. 주방에 떨어뜨리면 자동으로 준비돼요._
+
+식당 주인이 새 메뉴를 만들었어요. 어떻게 주방에 알릴까요? 요리사 한 명 한 명 붙잡고 "이 레시피 외워!" 하면 너무 힘들죠.
+
+그래서 사람들은 큰 상자 하나에 새 메뉴를 다 담아서 주방에 "탁!" 떨어뜨려요. 이 상자의 이름이 WAR 파일이에요. (Web ARchive의 줄임말, 사실은 "전쟁"이 아니라 "꾸러미"라는 뜻이에요.)
+
+상자 안에는 이런 게 들어 있어요:
+
+📄 새 요리사들 (.class 파일)📖 규칙집 (web.xml)🎨 그림과 디자인 (.html, .css, .png)
+
+이 상자를 Tomcat의 webapps/ 폴더에 살짝 떨어뜨리기만 하면, Tomcat이 스스로 발견해요. "오! 새 상자 왔네!" 하고는 자동으로 풀고, 규칙집을 읽고, 새 요리사들을 줄 세워요. 손님은 곧바로 새 메뉴를 주문할 수 있어요.
+
+💡 Spring Boot에선 다른 방식이에요요즘 Spring Boot는 JAR 파일을 써요. 이건 더 마법 같아요 — 작은 Tomcat이 상자 안에 들어가 있어서, 그냥 java -jar myapp.jar 한 줄이면 식당과 주방이 동시에 차려져요!
+
+
+## EPILOGUE — 한 그림에서 다시 만나요
+
+> _모든 친구들이 한 그림에. 손님 → Apache → Tomcat → 다시 손님으로!_
+
+자, 이제 처음부터 다시 따라가볼까요? 김초딩이 케이크 사진 한 장을 보고 싶었을 때 무슨 일이 있었는지요.
+
+🧒 크롬 친구가 주문서(HTTP 요청)를 들고 식당에 도착했어요.👨 Apache 아저씨가 주문서를 보고 "이건 사진이네!" 하고 진열장에서 척!🍰 김초딩은 0.1초만에 케이크 사진을 받았어요. 끝!
+
+다음엔 김초딩이 "내 장바구니 보여줘"라고 했어요.
+
+🧒 크롬 친구가 주문서를 또 들고 왔어요. 이번엔 주머니에서 도장 카드(쿠키)도 자동으로 꺼냈어요.👨 Apache 아저씨가 보더니 "이건 새로 만들어야 해" 하고 비밀 통로(AJP)로 슝~🪟 Tomcat 주방의 Connector가 받아서 "Java어로 번역!"👨‍🍳 Thread Pool에서 한가한 요리사 한 명이 "제가 갈게요!"👮 Filter 검사관들이 차례로 검사 — 로그인 확인, 번역, 기록.📖 web.xml 규칙집이 "이건 CartChef야!" 하고 가리켜요.🍳 CartChef(Servlet)가 김초딩의 세션 명단을 보고 "음료수 한 개" 정보를 꺼내요.📜 결과 HTML을 만들어서 빈 접시에 척! 담아요.↩ 같은 길을 거꾸로 — Connector → 비밀 통로 → Apache → 크롬 친구 → 김초딩 눈앞!
+
+이 모든 일이 1초 안에 일어나요. 매일 우리가 보는 인터넷의 모든 페이지 뒤엔, 이 작은 친구들이 끊임없이 손을 맞잡고 일하고 있답니다.
+
+이제 다음에 사이트가 "503 오류"를 띄울 때, 이렇게 상상해보세요 — 아, 주방에 요리사가 모자란가? 비밀 통로가 막혔나? 검사관이 ✕를 든 걸까? 그러면 한 발짝씩, 우리도 이 도시의 진짜 시민이 되는 거예요. 👏
+
 
 ---
 
-## 8. Template Engine — HTML 렌더링 추상화
-
-서블릿이 직접 HTML 문자열을 만들면 코드가 지저분해진다 (`out.println("<html>...")` 지옥). 그래서 **템플릿 파일**에 마크업을 두고, 서블릿은 **데이터만 전달**해서 렌더링을 위임한다. 이 위임 대상이 **Template Engine**.
-
-```
-[Servlet]               [Template Engine]
-List<User> users  ──▶   users.mustache  +  data  ──▶  HTML 문자열  ──▶  Response Buffer
-                        (캐시 우선 확인)
-```
-
-### 8.1 구현체 (Java 진영)
-- **JSP** — Java EE 표준. `.jsp` → `.java` → `.class`로 컴파일. Jasper 엔진. 오래된 방식
-- **Mustache** — Logic-less, 다른 언어와도 호환
-- **Thymeleaf** — Spring 진영 표준. 자연 HTML (`<th:>` 속성)
-- **Freemarker** — 강력한 표현식, 메일/문서 템플릿에도
-- **Velocity** — 단순한 문법
-- **Handlebars / Pebble / JTE** 등
-
-### 8.2 공통 메커니즘 — 컴파일 + 캐시
-모든 템플릿 엔진은 비슷한 패턴을 따른다:
-
-```
-[첫 요청]
-  1. 템플릿 파일 읽기 (디스크 I/O)
-  2. 파싱 → 내부 표현으로 컴파일 (AST나 Java 클래스로)
-  3. 캐시에 저장
-  4. 데이터 바인딩해서 렌더링
-  → 수십~수백 ms 소요
-
-[이후 요청]
-  1. 캐시 히트
-  2. 데이터 바인딩만 수행해서 렌더링
-  → ms 단위
-```
-
-JSP는 이 "컴파일된 형태"가 실제 `.class` 파일로 디스크에 떨어진다. Mustache 같은 라이브러리형 엔진은 보통 메모리에만 컴파일된 AST를 보관.
-
-### 8.3 운영 환경 팁
-- **JSP는 사전 컴파일(precompile)** 해서 배포 → 첫 요청 지연 제거
-- **개발 모드**: 파일 변경 감지해서 자동 재컴파일
-- **운영 모드**: 파일 변경 감지 끄고 영구 캐시 → 성능 최적화
-- 캐시는 LRU 등으로 관리, 너무 많은 템플릿이 있으면 메모리 부담
-
----
-
-## 9. Session & Cookie — 상태 유지
-
-HTTP는 stateless. 그래서 "이 요청이 누구로부터 왔는지"를 알려면 별도 메커니즘이 필요하다.
-
-### 9.1 동작 흐름 (타이밍 주의!)
-```
-[1차 요청 — 예: POST /login]
-  Browser ──▶ Tomcat
-  ① Tomcat: Session 객체 생성 → Server Session Store에 즉시 저장
-  ② 응답 헤더에 Set-Cookie: JSESSIONID=ABC123 추가
-  ③ 응답 패킷이 Apache → Browser로 도달
-  ④ ★ 이 시점에서야 Browser가 Set-Cookie를 읽고 쿠키 저장소에 저장 ★
-     (응답 도착 전엔 브라우저는 JSESSIONID를 모름!)
-
-[2차 요청 — 예: GET /users.jsp]
-  Browser: 저장된 쿠키 JSESSIONID=ABC123 자동 첨부
-  Browser ──▶ Tomcat
-  Tomcat: Server Session Store에서 ABC123 찾아 Session 객체 복원
-```
-
-> **흔한 오해**: "세션이 만들어지면 브라우저에 바로 쿠키가 생긴다" — 틀림.
-> 서버 메모리(Session Store)와 브라우저 쿠키 저장소는 **물리적으로 분리**되어 있고,
-> 둘을 잇는 것은 **응답에 실린 Set-Cookie 헤더**뿐이다. 응답이 도착해야만 동기화된다.
-
-### 9.2 Session 사용
-```java
-HttpSession session = req.getSession();  // 없으면 생성
-session.setAttribute("user", "admin");
-session.setAttribute("cart", cart);
-String user = (String) session.getAttribute("user");
-session.invalidate();  // 로그아웃
-```
-
-### 9.3 세션 저장 위치
-- 기본: **Tomcat 메모리** (WAS 재시작 시 날아감)
-- 대안:
-  - 디스크 (FileStore)
-  - Redis / Memcached — 가장 흔한 운영 패턴
-  - DB
-  - JWT로 stateless 전환 (세션 안 쓰기)
-
-### 9.4 쿠키 보안
-- `HttpOnly`: JS에서 접근 차단 → XSS 방어
-- `Secure`: HTTPS에서만 전송
-- `SameSite`: CSRF 방어 (Lax/Strict)
-
----
-
-## 10. 응답의 여정 (역순)
-
-```
-Servlet
-  └ response.getWriter().write("...") / response.setStatus(200)
-     ↓
-Tomcat Connector — HTTP 응답 메시지로 직렬화
-     ↓
-AJP → Apache mod_proxy_ajp
-     ↓
-Apache → 클라이언트 TCP 소켓
-     ↓
-Browser ← HTTP Response 파싱 후 렌더링
-```
-
-이때 Worker 스레드는 **Thread Pool로 반환**되어 idle 상태가 된다 (스레드는 재사용된다, 매번 만들지 않는다).
-
----
-
-## 11. 자주 묻는 질문
-
-### Q. Apache 없이 Tomcat만 써도 되나?
-가능. Tomcat 자체에도 HTTP Connector(8080)가 있다. 다만:
-- 정적 파일 처리 성능이 Apache보다 떨어짐
-- SSL 종료, 로드밸런싱, 캐싱은 Apache/Nginx가 더 잘함
-- 그래서 보통 **Nginx + Tomcat** 또는 **Apache + Tomcat** 구조로 간다.
-
-### Q. Spring Boot는 Tomcat 어디서 돌아가나?
-Spring Boot는 **임베디드 Tomcat**을 jar 안에 포함시킨다. `main()` 실행 시 Tomcat이 같이 뜸. 외부 web.xml은 필요 없고 어노테이션(`@RestController` 등)으로 등록.
-
-### Q. Thread Pool이 꽉 차면?
-1. 새 요청은 `acceptCount` 큐에서 대기
-2. 큐도 차면 connection refused
-3. 보통 원인은: 느린 DB 쿼리, 외부 API 대기, 무한 루프 → 한 스레드가 오래 점유
-4. 대응: 비동기 처리, DB 쿼리 최적화, 서킷 브레이커, scale-out
-
-### Q. 1 Request = 1 Thread를 깰 수 없나?
-Servlet 3.0+의 **Async Servlet** 또는 Spring WebFlux로 **이벤트 루프 모델** (Netty 기반)을 쓰면 한 스레드로 수많은 연결을 다룰 수 있다. I/O 대기가 많은 워크로드에서 유리.
-
----
-
-## 12. 시뮬레이터 사용법
-
-`tomcat-simulator.html`을 브라우저로 열면 됩니다.
-
-### 버튼별 시연 시나리오
-| 버튼 | 시연 포인트 |
-|---|---|
-| `GET /index.html` | 정적 — Web Server의 Static Handler가 바로 응답, Tomcat 안 거침 |
-| `GET /logo.png` | 정적 — MIME만 이미지 |
-| `GET /login-form` | 동적 GET — Proxy Pass로 Tomcat 전달, Template Engine으로 `login.mustache` 렌더링 (첫 호출 시 컴파일, 이후 캐시) |
-| `POST /login` | 실제 로그인 — Body 파싱, 서버 Session Store에 세션 생성, Set-Cookie 응답 |
-| `POST /api/users` | 보호 자원 — 세션 쿠키 없으면 AuthFilter가 401로 차단, 있으면 UsersServlet.doPost() 실행 |
-
-### 관찰 포인트
-1. **정적 요청**은 Web Server의 Static Handler에서 멈춤 — 패킷이 Tomcat까지 안 감, Tomcat 버퍼도 비어있음
-2. **Request Buffer** (왼쪽 파란 박스): 동적 요청 시 Header가 먼저 채워지고, POST면 Body까지 적재
-3. **Response Buffer** (오른쪽 주황 박스): 서블릿/템플릿 실행 후 Status+Headers, 그 다음 Body가 차례로 채워짐. 이때 `uncommitted` 상태 유지
-4. **COMMITTED 배지**가 초록으로 바뀌는 순간이 진짜 응답이 소켓으로 흘러나가는 시점 — 그 전엔 헤더 변경 가능
-5. **패킷에 표시되는 정보**: 요청 패킷엔 들고 가는 `🍪 JSESSIONID...`, 응답 패킷엔 `🍪 Set: ...` (Set-Cookie) 또는 `sid: ...` (기존 세션 식별자)
-6. `POST /api/users`를 로그인 안 한 상태에서 누르면 → AuthFilter에서 차단되어 **빨간 401 패킷**이 돌아옴 (Servlet/Template/비즈니스 로직 모두 미실행). 로그인 후 다시 누르면 정상 처리됨
-7. `GET /login-form`을 두 번 눌러보면 첫 번째는 `login.mustache` **컴파일 + 캐시 저장** (초록 `compiled` 배지 점등), 두 번째는 **캐시 히트** 로그
-8. `POST /login` 시: 서버 Session Store에 **즉시** 세션 생성, 응답 헤더에 `Set-Cookie` 표시되지만 브라우저 쿠키 영역은 **분홍 패킷(🍪)이 브라우저에 도착한 순간**에 비로소 채워짐
-9. **로그인 후 요청**의 Request Buffer Header 영역엔 `Cookie: JSESSIONID=...` 라인이 자동 첨부됨
-10. **Thread Pool**의 T0~T7 중 하나가 잠깐 초록색(busy)이 됐다가 다시 회색(idle)으로
-11. **⏸ 일시정지 버튼** 또는 **Space 키**로 애니메이션 중간에 일시정지·재개 가능 (애니메이션 중에도 일시정지 클릭 가능)
-
----
-
-## 13. 부하 상황별 클라이언트(브라우저) 경험
-
-Tab 2 시뮬레이터의 시나리오 프리셋과 매칭됩니다. 서버 측면의 메트릭은 시뮬레이터에서 보고, 같은 상황에서 **클라이언트(브라우저)에선 무엇이 보이는지**를 정리합니다.
-
-### 13.1 정상 운영 (여유 상태)
-> 시뮬레이터 프리셋: **여유** — 4 users / 8 threads / queue 4
-
-**서버 상태**
-- Thread Pool: 30~50% 사용
-- Queue: 항상 비어있음
-- 거부 0
-
-**브라우저 동작**
-- 응답시간: `proc time` 그대로 (예: 500ms)
-- HTTP 상태: 항상 `200 OK`
-- 페이지/리소스가 빠르게 로드, 스피너 잠깐 보이고 끝
-- 모든 AJAX 호출 정상 성공
-
-**사용자 인식**: "빠르네 / 정상이네"
-
----
-
-### 13.2 풀 포화 직전 (큐 대기 없음)
-> 시뮬레이터 프리셋: **포화 직전** — 8 users / 6 threads
-
-**서버 상태**
-- Thread Pool: 90~100% (활성 스레드 5~6개 / 6)
-- Queue: 거의 비어있다가 가끔 1~2개
-- 거부 0
-
-**브라우저 동작**
-- 응답시간: `proc time` + 가끔 짧은 큐 대기 (대부분 500ms, 가끔 700~800ms)
-- HTTP 상태: 모두 `200 OK`
-- 페이지 정상 로드, **체감 차이는 거의 없음**
-- 단, 응답시간의 표준편차가 커짐 (p99이 평균보다 살짝 높아지기 시작)
-
-**사용자 인식**: 일반 사용자는 못 느낌. 민감한 사용자만 "오늘 좀 답답한가?"
-
----
-
-### 13.3 큐 대기 발생 (Latency 악화)
-> 시뮬레이터 프리셋: **큐 대기 발생** — 12 users / 6 threads / queue 6
-
-**서버 상태**
-- Thread Pool: 항상 100% (6/6)
-- Queue: 채워졌다 비워졌다 반복, 평균 3~6개 점유
-- 거부 0 또는 극소수
-
-**브라우저 동작**
-- 응답시간:
-  - 새 요청은 큐에 들어가 대기 → **큐 대기 시간 + 처리 시간**
-  - 500ms 처리가 1.5초, 2초, 3초까지 늘어남
-  - p95이 1초 넘어가고 p99은 2~3초
-- HTTP 상태: 여전히 `200 OK` (단지 느릴 뿐)
-- 브라우저 스피너가 오래 돌아감 → 사용자가 "왜 안 떠?" 함
-
-**브라우저 특유의 연쇄 효과**
-- 브라우저는 **같은 호스트로 최대 6개 연결**(HTTP/1.1 기본)만 동시 사용
-- 그 6개가 모두 느린 응답을 기다리면 **다른 새 요청은 브라우저 내부 큐에서 또 대기**
-- 페이지 로드 시 여러 리소스(JS, CSS, API)가 같이 가져와지는데, 일부가 막히면 페이지 전체 렌더가 멈춘 듯 보임
-- AJAX 호출 여러 개를 보낸 SPA에선 일부는 빨리 오고 일부는 늦게 와서 화면이 chunked로 나타남
-
-**사용자 인식**: "느리다 / 버벅거린다 / 멈춘 것 같다"
-
----
-
-### 13.4 큐 오버플로우 (Connection Refused 폭주)
-> 시뮬레이터 프리셋: **거부 폭주** — 20 users / 2 threads / queue 2
-
-**서버 상태**
-- Thread Pool: 100% (2/2)
-- Queue: 100% (2/2)
-- 거부 카운터 계속 증가
-
-**서버가 거부할 때 일어나는 일** (두 가지 경로)
-
-**(a) TCP 레벨 거부 (acceptCount 초과)**
-- Tomcat의 OS 백로그 큐도 꽉 차서 **소켓 자체를 거부** (RST 또는 connection timeout)
-- 브라우저에 `net::ERR_CONNECTION_REFUSED` 표시
-- "사이트에 연결할 수 없음" 류 페이지
-
-**(b) 502 / 503 응답 (Web Server 또는 LB가 못 견딤)**
-- 앞단 Nginx/Apache가 백엔드 timeout 또는 unavailable 감지
-- 클라이언트에게 `502 Bad Gateway` 또는 `503 Service Unavailable` 반환
-- `Retry-After` 헤더에 권장 재시도 시간이 들어갈 수도 있음
-
-**브라우저 동작**
-- 일부 요청은 통과 (200 OK), 일부는 실패 (502/503/connection refused)
-- **무작위로** 성공/실패가 섞임 → 디버깅 가장 어려운 상태
-- SPA의 경우: 페이지 자체는 떴는데 일부 API만 빨갛게 깨짐
-- 사용자가 새로고침 누르면 또 일부만 됨
-
-**사용자 인식**: "사이트가 망가졌다 / 어떤 페이지는 되고 어떤 페이지는 안 된다"
-
-**브라우저는 자동 재시도하지 않음** — 사용자가 새로고침해야 함 (단, 일부 fetch 라이브러리는 자체 재시도 로직 가질 수 있음)
-
----
-
-### 13.5 슬로우 쿼리 시나리오
-> 시뮬레이터 프리셋: **슬로우 쿼리** — 12 users / 6 threads / 30% slow
-
-**서버 상태**
-- 슬로우 요청 (proc time × 3 = 1.5초 정도)이 Thread Pool 자리를 오래 점유
-- 정상 빠른 요청들도 그 동안 남은 스레드에서 처리 → 가용 스레드가 사실상 적어짐
-- 큐 대기 발생, 일부 거부
-
-**브라우저 동작**
-- **응답시간 분포가 두 봉우리(bimodal)**
-  - 운 좋은 요청: 평상시 속도 (~500ms)
-  - 운 나쁜 요청: 슬로우 쿼리를 만난 큐 자리에 들어감 → 2~5초
-- p50은 정상, **p95/p99이 극단적**
-- HTTP 상태: 대부분 200 OK, 일부 timeout 가능
-
-**사용자 인식이 가장 답답한 시나리오**
-- "어떨 땐 빠르고 어떨 땐 느리다"
-- 새로고침하면 잘 됨 → 재현이 안 되는 듯 보임
-- 사실은 운에 따라 다른 큐 자리에 들어가는 것
-- 운영자가 "재현이 안 돼요" 듣는 가장 흔한 케이스
-
----
-
-### 13.6 추가 알아두면 좋은 브라우저 동작
-
-**Connection Limit (호스트당 동시 연결 수)**
-- HTTP/1.1: 보통 6개 (브라우저별 다름)
-- HTTP/2: 1개 연결로 multiplexing (해결됨)
-- HTTP/3 (QUIC): UDP 기반, 더 효율적
-
-**자동 재시도?**
-- 브라우저는 일반적으로 **자동 재시도하지 않음**
-- GET이라도 자동 재시도 안 함 (idempotent여도)
-- 단, DNS 실패나 일부 네트워크 에러는 자동 복구 시도 가능
-- 페이지 로드 중 일부 리소스 실패 → 페이지의 다른 부분은 정상
-
-**HTTP Timeout**
-- 브라우저 기본: 보통 무한 (또는 매우 김, 분 단위)
-- OS 레벨 TCP timeout: ~75초 ~ 수분
-- `fetch()` API: 기본 timeout 없음 (AbortController로 설정 가능)
-- 프록시/CDN: 보통 30~60초 timeout 설정
-
-**Keep-Alive 영향**
-- HTTP/1.1은 기본 keep-alive → 같은 호스트에 여러 요청 시 연결 재사용
-- 연결이 막혀있으면 다음 요청도 그 연결에 묶임
-- 슬로우 쿼리가 keep-alive 연결을 점유하면 같은 연결의 다음 요청도 대기
-
-**캐싱 / Service Worker 영향**
-- 정적 리소스는 브라우저 캐시 사용 → 서버 폭주와 무관하게 빠름
-- Service Worker로 stale-while-revalidate 패턴 쓰면 오프라인이나 폭주 시 캐시로 응답 가능
-
----
-
-### 13.7 운영 대응 (서버측에서 클라이언트 경험 개선)
-
-| 증상 | 대응 |
-|---|---|
-| 큐 대기로 응답 느림 | `maxThreads` 증가 (메모리 한도 내), 비동기 처리 도입 |
-| Connection Refused 발생 | `acceptCount` 늘리거나 LB로 분산, scale-out |
-| 슬로우 쿼리가 풀 점유 | 쿼리 최적화, 별도 풀 분리, 서킷 브레이커 |
-| p99 레이턴시 높음 | Slow query 추적, DB 인덱스, 캐시 도입 |
-| 503 응답 시 클라이언트가 그냥 실패 | Nginx에서 `Retry-After` 헤더 추가, 클라이언트 재시도 로직 |
-| 일부 요청만 실패하는 미스터리 | 부하 시점 메트릭 확인 (RPS, p99, queue depth) — bimodal 분포 의심 |
-
-> 정리: 클라이언트가 보는 증상은 **(1) 같이 느림**, **(2) 일부만 실패**, **(3) 가끔만 느림** 셋 중 하나로 압축된다. 그 중 (3)이 가장 진단이 어렵다.
-
----
-
-## 부록: 핵심 용어 정리
-
-| 용어 | 한 줄 설명 |
-|---|---|
-| Servlet | Java로 HTTP 요청을 처리하는 클래스 |
-| JSP | HTML에 Java를 섞은 것. 결국 서블릿으로 컴파일됨 |
-| Container | 서블릿 생명주기를 관리하는 런타임 (= Tomcat) |
-| Connector | 외부 통신을 받아 내부 Engine으로 넘기는 컴포넌트 |
-| Engine / Host / Context | Tomcat의 계층 구조 (서버 → 가상호스트 → 웹앱) |
-| Filter | 서블릿 호출 전후로 끼어드는 인터셉터 |
-| web.xml | URL→서블릿 매핑·필터 등록 설정 파일 |
-| AJP | Apache↔Tomcat 통신 바이너리 프로토콜 |
-| JSESSIONID | Tomcat이 세션 식별용으로 발급하는 쿠키 이름 |
-| WAR | 웹앱 배포 단위 (Tomcat의 webapps/ 폴더에 떨어뜨림) |
+## 등장인물 사전
