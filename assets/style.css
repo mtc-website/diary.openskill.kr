@@ -504,12 +504,9 @@ a { color: inherit; text-decoration: none; }
   text-overflow: ellipsis;
   margin: 0;
 }
-.hero__categories { display: none !important; }
-
-/* Posts 섹션 — 위아래 여백 축소, 필터칩 숨김 */
+/* Posts 섹션 — 위아래 여백 축소 */
 .posts { padding: 18px 24px 28px !important; }
 .posts__header { margin-bottom: 14px !important; }
-.posts__filter { display: none !important; }
 
 /* 페이저 */
 .posts__pager {
