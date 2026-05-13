@@ -12,3 +12,6 @@ Thumbs.db
 
 # Hamstern session logs (local only)
 .hamstern/baby-hamster/
+
+# Playwright MCP snapshots/logs
+.playwright-mcp/
