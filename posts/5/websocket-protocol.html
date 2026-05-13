@@ -10,7 +10,7 @@
 
   /* Allow page to grow naturally — many simulators set
      html, body { height:100%; overflow:hidden } to lock viewport. The adapter
-     overrides this so floating bar + appended comments are reachable via scroll. */
+     overrides this so floating bar is reachable via scroll. */
   html, body {
     height: auto !important;
     min-height: 100% !important;
@@ -611,10 +611,10 @@
 <body>
 <!-- ======= OSD floating bar (injected) ======= -->
 <div id="osd-bar" role="navigation" aria-label="블로그 네비게이션">
-  <a href="../index.html" class="osd-bar__brand" title="블로그 홈">◆ Diary</a>
+  <a href="../../index.html" class="osd-bar__brand" title="블로그 홈">◆ Diary</a>
   <div class="osd-bar__title">WebSocket 프로토콜 동작 시뮬레이터</div>
   <div class="osd-bar__actions">
-    <a href="../index.html">← 목록</a>
+    <a href="../../index.html">← 목록</a>
     <button type="button" id="osd-theme-toggle" aria-label="테마 전환">테마</button>
   </div>
 </div>
