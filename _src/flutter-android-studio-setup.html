@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>초보자를 위한 Flutter + Android Studio 세팅 가이드</title>
+<meta name="description" content="JDK 21, Flutter SDK, Android Studio, 에뮬레이터, 라이센스 동의까지 — 최소한의 단계로 Flutter 개발 환경을 처음부터 끝까지 세팅하는 방법." />
+<style>
+  :root{
+    --bg: #0b1020;
+    --bg-soft: #11172b;
+    --panel: #ffffff;
+    --panel-soft: #f5f7fb;
+    --text: #1f2440;
+    --muted: #5b6478;
+    --line: #e3e7ef;
+    --primary: #2563eb;
+    --primary-dark: #1e40af;
+    --accent: #06b6d4;
+    --success: #16a34a;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --code-bg: #0f172a;
+    --code-text: #e2e8f0;
+    --shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    --radius: 14px;
+  }
+
+  *{ box-sizing: border-box; }
+  html, body{ margin:0; padding:0; }
+  body{
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+    background: linear-gradient(180deg, #f3f6fc 0%, #eef2f9 100%);
+    color: var(--text);
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Hero */
+  .hero{
+    background: linear-gradient(135deg, #0b1020 0%, #1e3a8a 60%, #2563eb 100%);
+    color: #fff;
+    padding: 64px 24px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before{
+    content:"";
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle at 20% 20%, rgba(6,182,212,0.25), transparent 40%),
+                      radial-gradient(circle at 80% 30%, rgba(99,102,241,0.25), transparent 40%);
+    pointer-events: none;
+  }
+  .hero-inner{ max-width: 980px; margin: 0 auto; position: relative; }
+  .badge{
+    display: inline-block;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #cfe1ff;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin-bottom: 18px;
+  }
+  .hero h1{
+    font-size: clamp(28px, 4.4vw, 44px);
+    line-height: 1.25;
+    margin: 0 0 14px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+  .hero p.lead{
+    color: #d6e4ff;
+    font-size: clamp(15px, 2.2vw, 18px);
+    margin: 0 0 28px;
+    max-width: 720px;
+  }
+  .hero-meta{
+    display: flex; flex-wrap: wrap; gap: 10px;
+  }
+  .chip{
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.18);
+    color: #e8efff;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  /* Container */
+  .container{
+    max-width: 980px;
+    margin: -50px auto 80px;
+    padding: 0 24px;
+    position: relative;
+  }
+
+  /* TOC */
+  .toc{
+    background: var(--panel);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 24px 28px;
+    margin-bottom: 28px;
+  }
+  .toc h2{
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 12px;
+    font-weight: 700;
+  }
+  .toc ol{
+    margin: 0; padding-left: 22px;
+    columns: 2; column-gap: 24px;
+  }
+  .toc li{ margin: 4px 0; break-inside: avoid; }
+  .toc a{
+    color: var(--text);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .toc a:hover{ color: var(--primary); text-decoration: underline; }
+
+  /* Sections */
+  section.card{
+    background: var(--panel);
+    border-radius: var(--radius);
+    border: 1px solid var(--line);
+    box-shadow: var(--shadow);
+    padding: 32px 32px;
+    margin-bottom: 22px;
+    scroll-margin-top: 20px;
+  }
+  section.card h2{
+    display: flex; align-items: center; gap: 14px;
+    margin: 0 0 18px;
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .step-num{
+    width: 38px; height: 38px;
+    background: linear-gradient(135deg, var(--primary), var(--accent));
+    color: #fff;
+    border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800; font-size: 16px;
+    box-shadow: 0 6px 16px rgba(37,99,235,0.35);
+    flex-shrink: 0;
+  }
+  section.card h3{
+    margin: 22px 0 10px;
+    font-size: 17px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+  section.card p{ margin: 8px 0; color: #2b3245; }
+  section.card ul, section.card ol{ margin: 8px 0; padding-left: 22px; }
+  section.card li{ margin: 6px 0; }
+  section.card a{ color: var(--primary); text-decoration: none; font-weight: 500; }
+  section.card a:hover{ text-decoration: underline; }
+
+  /* Code blocks */
+  pre, code{
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, Monaco, Consolas, monospace;
+  }
+  pre{
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 14px 16px;
+    border-radius: 10px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.55;
+    margin: 12px 0;
+    border: 1px solid #1e293b;
+  }
+  pre .prompt{ color: #94a3b8; user-select: none; }
+  pre .cmd{ color: #93c5fd; }
+  code.inline{
+    background: #eef2f9;
+    color: #1e293b;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    border: 1px solid #e2e8f0;
+  }
+
+  /* Callouts */
+  .callout{
+    border-left: 4px solid var(--primary);
+    background: var(--panel-soft);
+    padding: 14px 16px;
+    margin: 14px 0;
+    border-radius: 0 10px 10px 0;
+  }
+  .callout.tip{ border-color: var(--accent); background: #ecfeff; }
+  .callout.warn{ border-color: var(--warning); background: #fffbeb; }
+  .callout.danger{ border-color: var(--danger); background: #fef2f2; }
+  .callout strong{ display: inline-block; margin-bottom: 4px; }
+
+  /* Checklist */
+  .checklist{
+    list-style: none;
+    padding: 0; margin: 12px 0;
+  }
+  .checklist li{
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    border-radius: 10px;
+    margin: 8px 0;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .checklist li::before{
+    content: "✓";
+    color: var(--success);
+    font-weight: 800;
+    font-size: 17px;
+    margin-top: -2px;
+  }
+
+  /* Path table */
+  .path-table{
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 12px 0;
+  }
+  .path-table .row{
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 14px;
+  }
+  .path-table .row:last-child{ border-bottom: none; }
+  .path-table .label{ color: var(--muted); font-weight: 600; }
+  .path-table .val code{ background: #fff; }
+
+  /* Screenshot figure */
+  figure.screenshot{
+    margin: 16px 0;
+    padding: 0;
+    background: var(--panel-soft);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  figure.screenshot img{
+    display: block;
+    width: 100%;
+    height: auto;
+    background: #1a1d29;
+  }
+  figure.screenshot figcaption{
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    background: #fff;
+    text-align: center;
+  }
+
+  /* Doctor output */
+  .doctor{
+    background: #0f172a;
+    color: #d1d5db;
+    border-radius: 10px;
+    padding: 16px 18px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  .doctor .ok{ color: #4ade80; }
+  .doctor .warn{ color: #facc15; }
+  .doctor .err{ color: #f87171; }
+
+  /* Footer */
+  footer{
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    padding: 30px 20px 60px;
+  }
+  footer a{ color: var(--primary); text-decoration: none; }
+  footer a:hover{ text-decoration: underline; }
+
+  /* Responsive */
+  @media (max-width: 640px){
+    .toc ol{ columns: 1; }
+    section.card{ padding: 22px 18px; }
+    .hero{ padding: 50px 20px 70px; }
+    .path-table .row{ grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="badge">초보자용 · Windows 기준</span>
+    <h1>Android Studio로 Flutter 개발 환경<br />가장 쉽게 세팅하기</h1>
+    <p class="lead">
+      JDK 21, Flutter SDK, Android Studio, 에뮬레이터, Android 라이센스 동의까지 —
+      처음 시작하는 분이 아무것도 모르고 따라와도 끝까지 도달할 수 있도록 만든 최소 단계 가이드입니다.
+    </p>
+    <div class="hero-meta">
+      <span class="chip">⏱ 소요 시간 약 60~90분</span>
+      <span class="chip">💾 디스크 약 15GB</span>
+      <span class="chip">🪟 Windows 10 / 11</span>
+      <span class="chip">📦 Flutter 3.x</span>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- TOC -->
+  <nav class="toc" aria-label="목차">
+    <h2>목차</h2>
+    <ol>
+      <li><a href="#overview">전체 흐름 미리 보기</a></li>
+      <li><a href="#step1">Step 1. JDK 21 설치</a></li>
+      <li><a href="#step2">Step 2. Android Studio 설치</a></li>
+      <li><a href="#step3">Step 3. Android SDK · 도구 설치</a></li>
+      <li><a href="#step4">Step 4. Flutter SDK 설치</a></li>
+      <li><a href="#step5">Step 5. PATH 환경변수 등록</a></li>
+      <li><a href="#step6">Step 6. Android 라이센스 동의</a></li>
+      <li><a href="#step7">Step 7. 에뮬레이터 만들기</a></li>
+      <li><a href="#step8">Step 8. flutter doctor 점검</a></li>
+      <li><a href="#step9">Step 9. 첫 앱 만들고 실행</a></li>
+      <li><a href="#step-git">(선택) Git 설치 — SDK 업데이트용</a></li>
+      <li><a href="#troubleshoot">자주 만나는 오류 해결</a></li>
+    </ol>
+  </nav>
+
+  <!-- Overview -->
+  <section class="card" id="overview">
+    <h2><span class="step-num">0</span>전체 흐름 미리 보기</h2>
+    <p>Flutter 개발을 시작하려면 아래 항목이 필요합니다. 각 단계가 왜 필요한지 먼저 짚고 시작하면 헷갈리지 않습니다.</p>
+    <ul class="checklist">
+      <li><strong>JDK 21</strong> — Android 앱을 빌드하기 위한 Java 실행 환경. (Android Studio에 JBR로 내장돼 있지만, 명령줄에서 빌드할 때를 대비해 별도 설치 권장)</li>
+      <li><strong>Android Studio</strong> — 코드를 작성하고 디버깅하는 메인 IDE이자 Android SDK · 에뮬레이터 관리 도구.</li>
+      <li><strong>Flutter SDK</strong> — Flutter의 본체. <code class="inline">flutter</code> 명령어가 여기서 나옵니다.</li>
+      <li><strong>Android SDK + 에뮬레이터 + 라이센스 동의</strong> — Android 앱을 빌드 · 실행하기 위한 도구와 동의 절차.</li>
+      <li><strong>Git (선택)</strong> — <code class="inline">flutter upgrade</code> 같은 SDK 업데이트 · 채널 전환 시에만 필요. 일상적인 개발(<code class="inline">flutter run</code>, <code class="inline">flutter build</code>)에는 없어도 됩니다.</li>
+    </ul>
+    <div class="callout tip">
+      <strong>💡 Tip.</strong> 설치 도중 막히면 <a href="#troubleshoot">맨 아래 트러블슈팅</a>을 먼저 보세요. 거의 모든 초보자가 같은 곳에서 막힙니다.
+    </div>
+  </section>
+
+  <!-- Step 1: JDK -->
+  <section class="card" id="step1">
+    <h2><span class="step-num">1</span>JDK 21 설치</h2>
+    <p>Android Gradle Plugin이 JDK 21을 요구합니다. 가장 무난한 선택은 <strong>Eclipse Temurin (Adoptium)</strong>의 JDK 21 LTS입니다.</p>
+
+    <h3>다운로드</h3>
+    <ol>
+      <li><a href="https://adoptium.net/temurin/releases/?version=21" target="_blank" rel="noopener">adoptium.net의 Temurin 21 다운로드 페이지</a>에 접속합니다.</li>
+      <li>OS는 <strong>Windows</strong>, 아키텍처는 <strong>x64</strong>, 패키지 형식은 <strong>.msi</strong>를 선택합니다.</li>
+      <li>설치 마법사 실행 → <strong>Set JAVA_HOME variable</strong>과 <strong>Add to PATH</strong> 옵션을 반드시 체크하고 설치합니다.</li>
+    </ol>
+
+    <h3>설치 확인</h3>
+    <p>새 터미널(PowerShell)을 열고 아래를 입력합니다.</p>
+<pre><span class="prompt">PS&gt; </span><span class="cmd">java -version</span>
+openjdk version "21.0.x" ...</pre>
+    <p>버전이 21로 나오면 성공입니다.</p>
+
+    <div class="callout">
+      <strong>📌 알아두기.</strong> 최신 Android Studio는 내부에 JBR(JetBrains Runtime, JDK 21 기반)을 포함하고 있어서 IDE 안에서만 빌드하면 별도 JDK가 없어도 동작합니다. 하지만 명령줄로 <code class="inline">flutter build</code>를 돌리려면 시스템 JDK가 필요하므로 그냥 설치해두는 게 편합니다.
+    </div>
+  </section>
+
+  <!-- Step 2: Android Studio -->
+  <section class="card" id="step2">
+    <h2><span class="step-num">2</span>Android Studio 설치</h2>
+    <p>Flutter 개발의 중심 IDE입니다. Android SDK · 에뮬레이터 관리도 모두 여기서 합니다.</p>
+    <ol>
+      <li><a href="https://developer.android.com/studio" target="_blank" rel="noopener">developer.android.com/studio</a>에서 최신 안정 버전(Stable)을 다운로드합니다.</li>
+      <li>설치 마법사 진행 시 옵션은 모두 기본값(Next)으로 둡니다.</li>
+      <li>설치 후 처음 실행하면 <strong>Setup Wizard</strong>가 뜹니다. <strong>Standard</strong>를 선택해 진행하세요. 그러면 권장 Android SDK · 플랫폼 도구가 자동으로 함께 설치됩니다.</li>
+    </ol>
+
+    <h3>Flutter · Dart 플러그인 추가</h3>
+    <ol>
+      <li>Android Studio 첫 화면에서 <strong>More Actions</strong> &gt; <strong>Plugins</strong>를 엽니다. (또는 <code class="inline">File &gt; Settings &gt; Plugins</code>)</li>
+      <li>검색창에 <strong>Flutter</strong>를 입력하고 설치합니다. (Dart 플러그인은 자동으로 같이 깔립니다.)</li>
+      <li>설치 후 Android Studio를 한 번 재시작합니다.</li>
+    </ol>
+  </section>
+
+  <!-- Step 3: Android SDK & Tools -->
+  <section class="card" id="step3">
+    <h2><span class="step-num">3</span>Android SDK와 도구 설치</h2>
+    <p>Android Studio 시작 화면에서 <strong>More Actions &gt; SDK Manager</strong>를 클릭합니다. (프로젝트가 열려 있다면 <code class="inline">Tools &gt; SDK Manager</code>)</p>
+
+    <figure class="screenshot">
+      <img src="./images/android-sdk.png" alt="Android Studio 시작 화면에서 More Actions를 펼친 모습. 메뉴 항목 중 'SDK Manager'가 강조돼 있습니다." />
+      <figcaption>Welcome 화면 → <strong>More Actions</strong> 드롭다운 → <strong>SDK Manager</strong> 클릭</figcaption>
+    </figure>
+
+    <h3>SDK Platforms 탭</h3>
+    <ul>
+      <li>가장 최신 API Level(현재 <strong>API 36</strong>)을 체크합니다.</li>
+      <li>오른쪽 아래 <strong>Apply</strong>를 누른 뒤 라이센스 약관에 동의하고 설치합니다.</li>
+    </ul>
+
+    <h3>SDK Tools 탭</h3>
+    <p>다음 항목이 모두 체크돼 있는지 확인하고, 빠진 게 있으면 체크 후 Apply를 누릅니다.</p>
+    <ul class="checklist">
+      <li>Android SDK Build-Tools</li>
+      <li>Android SDK Command-line Tools</li>
+      <li>Android Emulator</li>
+      <li>Android SDK Platform-Tools</li>
+      <li>CMake</li>
+      <li>NDK (Side by side)</li>
+    </ul>
+
+    <div class="callout warn">
+      <strong>⚠️ 중요.</strong> <strong>Android SDK Command-line Tools</strong>를 꼭 설치해야 합니다. 이게 없으면 다음 단계의 <code class="inline">flutter doctor --android-licenses</code> 명령이 실패합니다.
+    </div>
+  </section>
+
+  <!-- Step 4: Flutter SDK -->
+  <section class="card" id="step4">
+    <h2><span class="step-num">4</span>Flutter SDK 설치</h2>
+    <p>Flutter SDK는 압축 파일을 풀어서 적당한 폴더에 두기만 하면 됩니다. <strong>경로에 한글이나 공백, 특수문자가 들어가면 안 됩니다.</strong></p>
+
+    <h3>다운로드 &amp; 압축 풀기</h3>
+    <ol>
+      <li><a href="https://docs.flutter.dev/install/archive" target="_blank" rel="noopener">docs.flutter.dev/install/archive</a>의 <strong>Stable channel (Windows)</strong>에서 최신 zip을 받습니다.</li>
+      <li>다음 위치에 압축을 풉니다 (사용자 폴더 아래 권장):
+        <div class="path-table">
+          <div class="row">
+            <span class="label">권장 경로</span>
+            <span class="val"><code class="inline">C:\src\flutter</code></span>
+          </div>
+          <div class="row">
+            <span class="label">피해야 할 경로</span>
+            <span class="val"><code class="inline">C:\Program Files\...</code> (관리자 권한 필요), <code class="inline">C:\Users\홍길동\...</code> (한글 포함)</span>
+          </div>
+        </div>
+      </li>
+      <li>압축을 풀면 <code class="inline">C:\src\flutter\bin</code> 폴더가 생깁니다. 이 경로를 다음 단계에서 PATH에 등록합니다.</li>
+    </ol>
+  </section>
+
+  <!-- Step 5: PATH -->
+  <section class="card" id="step5">
+    <h2><span class="step-num">5</span>환경변수 PATH에 Flutter 등록</h2>
+    <p>이 단계를 거쳐야 어디서든 터미널에서 <code class="inline">flutter</code> 명령을 사용할 수 있습니다.</p>
+    <ol>
+      <li>Windows 검색에 <strong>"환경 변수"</strong>를 입력 → <strong>시스템 환경 변수 편집</strong> 클릭.</li>
+      <li><strong>환경 변수(N)...</strong> 버튼 클릭.</li>
+      <li>위쪽 <strong>사용자 변수</strong> 영역에서 <code class="inline">Path</code>를 선택 → <strong>편집</strong>.</li>
+      <li><strong>새로 만들기</strong>를 누르고 다음 경로를 추가:
+<pre>C:\src\flutter\bin</pre>
+      </li>
+      <li>확인을 눌러 모든 창을 닫고, <strong>이미 열려 있던 모든 터미널을 종료한 뒤 새 터미널을 엽니다.</strong> (이게 핵심!)</li>
+    </ol>
+
+    <h3>확인</h3>
+<pre><span class="prompt">PS&gt; </span><span class="cmd">flutter --version</span>
+Flutter 3.x.x • channel stable ...</pre>
+    <p>버전 정보가 나오면 성공입니다.</p>
+  </section>
+
+  <!-- Step 6: Licenses -->
+  <section class="card" id="step6">
+    <h2><span class="step-num">6</span>Android 라이센스 동의</h2>
+    <p>Android SDK는 사용 전에 라이센스에 동의해야 합니다. 이걸 안 하면 빌드할 때 오류가 납니다.</p>
+<pre><span class="prompt">PS&gt; </span><span class="cmd">flutter doctor --android-licenses</span></pre>
+    <p>화면에 약관이 한 묶음씩 나타납니다. <strong>매번 <code class="inline">y</code>를 누르고 Enter</strong>를 치며 모두 동의합니다. 마지막에 다음 메시지가 보이면 끝:</p>
+<pre>All SDK package licenses accepted.</pre>
+
+    <div class="callout warn">
+      <strong>⚠️ "cmdline-tools component is missing" 에러가 난다면?</strong>
+      Step 3의 SDK Tools 탭에서 <strong>Android SDK Command-line Tools</strong>를 설치하지 않은 것입니다. 다시 돌아가 설치하세요.
+    </div>
+  </section>
+
+  <!-- Step 7: Emulator -->
+  <section class="card" id="step7">
+    <h2><span class="step-num">7</span>Android 에뮬레이터 만들기</h2>
+    <p>실제 휴대폰을 USB로 연결해도 되지만, 처음에는 PC 안에서 도는 에뮬레이터가 가장 편합니다.</p>
+
+    <h3>VM 가속 활성화 (Windows)</h3>
+    <p>BIOS에서 <strong>Intel VT-x</strong> 또는 <strong>AMD-V</strong>(SVM)가 켜져 있어야 합니다. 보통 최신 PC는 기본으로 켜져 있습니다.</p>
+
+    <h3>에뮬레이터(AVD) 생성</h3>
+    <ol>
+      <li>Android Studio 시작 화면에서 <strong>More Actions &gt; Virtual Device Manager</strong>를 엽니다. (또는 <code class="inline">Tools &gt; Device Manager</code>)</li>
+      <li>왼쪽 위 <strong>+ Create Virtual Device</strong> 클릭.</li>
+      <li>Form Factor에서 <strong>Phone</strong> 선택 → 예: <strong>Pixel 8</strong> 선택 후 <strong>Next</strong>.</li>
+      <li>System Image: 사용 중인 CPU에 따라 <strong>x86 Images</strong>(Intel/AMD) 또는 <strong>ARM Images</strong>(Snapdragon X 등) 탭에서 최신 안정 Android 버전을 선택합니다. 이미지 옆 ⬇️ 아이콘이 있으면 클릭해 먼저 다운로드.</li>
+      <li><strong>Additional settings</strong> → Emulated Performance → <strong>Graphics: Hardware</strong>로 설정합니다.</li>
+      <li><strong>Finish</strong>를 누르면 가상 기기가 생성됩니다.</li>
+      <li>Device Manager에서 만든 기기 옆 ▶ 버튼을 눌러 한 번 부팅해봅니다. 잠시 뒤 화면에 안드로이드 홈이 뜨면 성공입니다.</li>
+    </ol>
+  </section>
+
+  <!-- Step 8: doctor -->
+  <section class="card" id="step8">
+    <h2><span class="step-num">8</span>flutter doctor로 최종 점검</h2>
+    <p>모든 설치를 한 번에 점검해주는 만능 명령어입니다.</p>
+<pre><span class="prompt">PS&gt; </span><span class="cmd">flutter doctor</span></pre>
+    <p>이상적인 결과는 다음과 같습니다. 모든 항목 앞에 ✓ 가 떠야 합니다.</p>
+<div class="doctor">
+<span class="ok">[✓]</span> Flutter (Channel stable, 3.x.x, on Microsoft Windows ...)
+<span class="ok">[✓]</span> Windows Version (Installed version of Windows ...)
+<span class="ok">[✓]</span> Android toolchain - develop for Android devices (Android SDK version 36.x.x)
+<span class="ok">[✓]</span> Chrome - develop for the web
+<span class="ok">[✓]</span> Visual Studio - develop Windows apps (optional)
+<span class="ok">[✓]</span> Android Studio (version 202x.x)
+<span class="ok">[✓]</span> VS Code (optional)
+<span class="ok">[✓]</span> Connected device (1 available)
+<span class="ok">[✓]</span> Network resources
+
+• No issues found!
+</div>
+    <p>만약 ✗ 나 ! 가 보이면, 메시지에 적힌 해결책을 그대로 따라 하면 됩니다.</p>
+  </section>
+
+  <!-- Step 9: First App -->
+  <section class="card" id="step9">
+    <h2><span class="step-num">9</span>첫 Flutter 앱 만들고 실행</h2>
+
+    <h3>프로젝트 생성</h3>
+    <ol>
+      <li>Android Studio 시작 화면에서 <strong>New Flutter Project</strong> 클릭.</li>
+      <li>왼쪽에서 <strong>Flutter</strong> 선택 → Flutter SDK path에 <code class="inline">C:\src\flutter</code> 입력 → <strong>Next</strong>.</li>
+      <li>Project name: 소문자/언더바만 사용 (예: <code class="inline">my_first_app</code>).</li>
+      <li>Project location은 한글이 없는 경로로. (예: <code class="inline">C:\src\my_first_app</code>)</li>
+      <li><strong>Create</strong> 클릭. SDK 다운로드와 첫 빌드까지 수 분 걸릴 수 있습니다.</li>
+    </ol>
+
+    <h3>실행</h3>
+    <ol>
+      <li>상단 디바이스 선택 메뉴에서 Step 7에서 만든 에뮬레이터를 선택합니다.</li>
+      <li>▶ 실행 버튼(또는 <code class="inline">Shift</code>+<code class="inline">F10</code>)을 누릅니다.</li>
+      <li>에뮬레이터에 카운터 앱이 뜨고, 오른쪽 아래 + 버튼을 누르면 숫자가 올라갑니다. 🎉</li>
+    </ol>
+
+    <h3>Hot Reload 체험</h3>
+    <p><code class="inline">lib/main.dart</code>에서 <code class="inline">'You have pushed the button this many times:'</code> 문구를 자유롭게 바꿔보세요. 저장(<code class="inline">Ctrl</code>+<code class="inline">S</code>)하는 순간 에뮬레이터 화면이 즉시 갱신됩니다. 이것이 Flutter의 가장 강력한 기능 중 하나, <strong>Stateful Hot Reload</strong>입니다.</p>
+  </section>
+
+  <!-- Optional: Git -->
+  <section class="card" id="step-git">
+    <h2><span class="step-num">+</span>(선택) Git 설치 — SDK 업데이트 시에만 필요</h2>
+    <p>Git이 없어도 위 9단계까지는 모두 동작하고 앱도 정상적으로 빌드 · 실행됩니다. Git이 실제로 필요해지는 시점은 다음과 같습니다.</p>
+    <ul>
+      <li><code class="inline">flutter upgrade</code> — Flutter SDK를 최신 버전으로 올릴 때</li>
+      <li><code class="inline">flutter downgrade</code> — 이전 버전으로 되돌릴 때</li>
+      <li><code class="inline">flutter channel stable / beta / master</code> — 릴리스 채널을 전환할 때</li>
+    </ul>
+    <p>이 명령들은 모두 내부적으로 <code class="inline">git pull</code>을 호출하기 때문에, Git이 없으면 위 명령만 실패합니다. 일상 개발에는 영향 없습니다.</p>
+
+    <h3>설치 방법</h3>
+    <ol>
+      <li><a href="https://git-scm.com/downloads/win" target="_blank" rel="noopener">git-scm.com/downloads/win</a>에서 64-bit Git for Windows Setup을 받습니다.</li>
+      <li>설치 마법사는 옵션을 바꾸지 말고 모두 기본값(Next)으로 진행합니다.</li>
+      <li>새 터미널에서 <code class="inline">git --version</code>으로 확인.</li>
+    </ol>
+
+    <div class="callout tip">
+      <strong>💡 참고.</strong> <code class="inline">flutter doctor</code>는 Git 설치 여부를 별도 항목으로 표시하지 않습니다. SDK 업데이트가 필요할 때 비로소 에러 메시지로 알려주는 식입니다.
+    </div>
+  </section>
+
+  <!-- Troubleshoot -->
+  <section class="card" id="troubleshoot">
+    <h2><span class="step-num">⚠</span>자주 만나는 오류 해결</h2>
+
+    <h3>1. <code class="inline">flutter</code> 명령을 찾을 수 없다고 나옵니다.</h3>
+    <p>PATH 등록 후에는 <strong>열려 있던 터미널을 모두 닫고 새로 열어야</strong> 합니다. Android Studio도 한 번 재시작하세요. 그래도 안 되면 PATH에 들어간 경로가 <code class="inline">C:\src\flutter\bin</code> 인지 다시 확인합니다.</p>
+
+    <h3>2. <code class="inline">cmdline-tools component is missing</code></h3>
+    <p>SDK Manager → SDK Tools 탭 → <strong>Android SDK Command-line Tools (latest)</strong>에 체크 후 Apply.</p>
+
+    <h3>3. <code class="inline">Android license status unknown</code></h3>
+    <p>아래 명령을 다시 실행하고 모든 약관에 <code class="inline">y</code>로 동의합니다.</p>
+<pre><span class="prompt">PS&gt; </span><span class="cmd">flutter doctor --android-licenses</span></pre>
+
+    <h3>4. 에뮬레이터가 너무 느리거나 부팅이 안 됩니다.</h3>
+    <ul>
+      <li>BIOS에서 <strong>VT-x</strong>(Intel) 또는 <strong>SVM</strong>(AMD)이 켜져 있는지 확인.</li>
+      <li>Windows 기능에서 <strong>Hyper-V</strong> 또는 <strong>Windows Hypervisor Platform</strong>이 켜져 있는지 확인. (Android Studio가 안내하는 옵션을 그대로 켜세요.)</li>
+      <li>System Image를 <strong>Google APIs (x86_64)</strong> 같은 가벼운 버전으로 바꿔보세요.</li>
+    </ul>
+
+    <h3>5. Gradle build가 JDK 버전 때문에 실패합니다.</h3>
+    <p>아래로 Flutter가 사용하는 JDK를 명시적으로 지정할 수 있습니다.</p>
+<pre><span class="prompt">PS&gt; </span><span class="cmd">flutter config --jdk-dir "C:\Program Files\Eclipse Adoptium\jdk-21..."</span></pre>
+
+    <h3>6. 한글 경로 / 공백 경로 문제</h3>
+    <p>Flutter SDK 경로 또는 프로젝트 경로에 한글, 공백, 특수문자가 있으면 빌드가 깨집니다. 모두 <code class="inline">C:\src\...</code> 같은 영문 경로로 옮기세요.</p>
+
+    <div class="callout tip">
+      <strong>🔍 더 깊이 파보고 싶다면.</strong>
+      공식 트러블슈팅 문서가 가장 정확합니다 → <a href="https://docs.flutter.dev/install/troubleshoot" target="_blank" rel="noopener">docs.flutter.dev/install/troubleshoot</a>
+    </div>
+  </section>
+
+  <!-- Closing -->
+  <section class="card">
+    <h2><span class="step-num">🎉</span>축하합니다!</h2>
+    <p>여기까지 무사히 따라왔다면, 이제 Flutter로 Android 앱을 만들 수 있는 모든 환경이 준비된 것입니다. 다음 단계로는 공식 학습 경로를 따라가는 게 가장 빠릅니다.</p>
+    <ul>
+      <li><a href="https://docs.flutter.dev/learn/pathway" target="_blank" rel="noopener">Flutter 학습 경로 (공식)</a></li>
+      <li><a href="https://docs.flutter.dev/ui/widgets" target="_blank" rel="noopener">Flutter 위젯 카탈로그</a></li>
+      <li><a href="https://dart.dev/overview" target="_blank" rel="noopener">Dart 언어 한눈에 보기</a></li>
+    </ul>
+  </section>
+
+</main>
+
+<footer>
+  본 가이드는 <a href="https://docs.flutter.dev/install/quick" target="_blank" rel="noopener">Flutter 공식 Quick Start</a> 및
+  <a href="https://docs.flutter.dev/platform-integration/android/setup" target="_blank" rel="noopener">Android 개발 환경 설정 문서</a>를 기반으로 한글로 재구성했습니다.<br />
+  Flutter SDK 버전은 시간이 지나면서 갱신되므로, 정확한 최신 정보는 공식 문서를 함께 참고하세요.
+</footer>
+
+</body>
+</html>
