@@ -1,0 +1,2182 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<!-- ======= Open Skill Diary theme adapter (injected) ======= -->
+<style id="osd-theme-adapter">
+  /* Reserve space for the floating bar — adapter does NOT touch the simulator's
+     own max-width / centering. If the simulator has .container { max-width: ...;
+     margin: 0 auto } it stays centered; if it has none, it stays full-width. */
+  body { padding-top: 56px !important; }
+
+  /* Allow page to grow naturally — many simulators set
+     html, body { height:100%; overflow:hidden } to lock viewport. The adapter
+     overrides this so floating bar is reachable via scroll. */
+  html, body {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    overflow-y: auto !important;
+  }
+
+  /* Bidirectional inversion: applied only when the source tone differs from
+     the selected blog theme. If they match, the original colors are kept
+     untouched. The wrapper isolates the filter from the floating bar. */
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] body { background: #f7f8fb !important; }
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] body { background: #0c1220 !important; }
+
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper {
+    filter: invert(0.92) hue-rotate(180deg);
+    min-height: 100vh;
+  }
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper img,
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper svg,
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper video,
+  html[data-osd-source-theme="dark"][data-osd-theme="light"] #osd-content-wrapper canvas,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper img,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper svg,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper video,
+  html[data-osd-source-theme="light"][data-osd-theme="dark"] #osd-content-wrapper canvas {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  /* Floating top bar — fixed, very high z-index, sits above wrapper */
+  #osd-bar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 2147483647;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; padding: 10px 16px;
+    background: rgba(15, 22, 36, 0.85);
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+    color: #e8eef9;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard",
+                 "Noto Sans KR", sans-serif;
+    font-size: 13px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+  }
+  html[data-osd-theme="light"] #osd-bar {
+    background: rgba(255,255,255,0.92);
+    border-bottom: 1px solid #e3e8ef;
+    color: #1a2332;
+    box-shadow: 0 1px 3px rgba(20,30,50,0.06), 0 4px 16px rgba(20,30,50,0.04);
+  }
+  #osd-bar a, #osd-bar button {
+    color: inherit; background: transparent; border: 1px solid currentColor;
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 600;
+    text-decoration: none; cursor: pointer;
+    opacity: 0.85; transition: opacity .15s, transform .15s;
+    font-family: inherit;
+  }
+  #osd-bar a:hover, #osd-bar button:hover { opacity: 1; transform: translateY(-1px); }
+  #osd-bar .osd-bar__title { font-weight: 700; letter-spacing: -0.2px; opacity: 0.9;
+    flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #osd-bar .osd-bar__actions { display: flex; gap: 8px; flex-shrink: 0; }
+  #osd-bar .osd-bar__brand { font-weight: 700; font-size: 13px; opacity: 0.7; flex-shrink: 0; }
+  @media (max-width: 640px) {
+    #osd-bar { padding: 8px 10px; font-size: 12px; }
+    #osd-bar .osd-bar__title { display: none; }
+  }
+</style>
+<script>
+  (function(){
+    document.documentElement.setAttribute('data-osd-source-theme', 'light');
+    try {
+      var t = localStorage.getItem('blog-theme') || 'dark';
+      document.documentElement.setAttribute('data-osd-theme', t);
+    } catch(e){}
+  })();
+</script>
+<!-- ======= /theme adapter ======= -->
+
+<meta charset="UTF-8">
+<title>메모리 시뮬레이터 — Java / JavaScript / Dart (확장판)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Pretendard', sans-serif;
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1500px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #64748b; margin-bottom: 18px; font-size: 13px; line-height: 1.5; }
+  .tabs {
+    display: flex; gap: 2px;
+    border-bottom: 2px solid #cbd5e1;
+    margin-bottom: 16px;
+  }
+  .tab {
+    padding: 10px 22px; background: transparent;
+    border: none; cursor: pointer; font-size: 14px; font-weight: 600;
+    color: #64748b; border-bottom: 3px solid transparent;
+    margin-bottom: -2px; transition: all 0.15s;
+  }
+  .tab:hover { color: #1e293b; background: #e2e8f0; border-radius: 6px 6px 0 0; }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .main { display: grid; grid-template-columns: 1fr 1.15fr; gap: 16px; }
+  .panel {
+    background: white; border-radius: 10px; padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .code-panel pre {
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.55;
+    background: #1e293b; color: #e2e8f0;
+    padding: 12px 4px; border-radius: 6px;
+    overflow-x: auto; max-height: 420px; overflow-y: auto;
+  }
+  .code-line {
+    display: block; padding: 0 10px; border-radius: 3px;
+    transition: background 0.15s; white-space: pre;
+  }
+  .code-line.active {
+    background: #fbbf24; color: #1e293b; font-weight: 600;
+  }
+  .ln {
+    color: #64748b; margin-right: 10px;
+    display: inline-block; width: 22px; text-align: right;
+    user-select: none;
+  }
+  .code-line.active .ln { color: #1e293b; }
+  .controls { display: flex; gap: 6px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .controls button {
+    padding: 7px 14px; background: #2563eb; color: white;
+    border: none; border-radius: 5px; cursor: pointer;
+    font-size: 13px; font-weight: 500;
+  }
+  .controls button:hover:not(:disabled) { background: #1d4ed8; }
+  .controls button.secondary { background: #64748b; }
+  .controls button.secondary:hover { background: #475569; }
+  .controls button:disabled { background: #cbd5e1; cursor: not-allowed; }
+  .step-info {
+    margin-left: auto; color: #475569; font-size: 13px; font-weight: 500;
+  }
+  .narration {
+    margin-top: 10px; padding: 11px 13px;
+    background: #eff6ff; border-left: 4px solid #2563eb;
+    border-radius: 4px; font-size: 13px; line-height: 1.6;
+    min-height: 90px;
+  }
+  .narration strong { color: #1d4ed8; }
+
+  .memory-panel {
+    display: grid; gap: 10px;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "static static"
+      "stack heap";
+  }
+  .static-region { grid-area: static; }
+  .stack-region { grid-area: stack; }
+  .heap-region { grid-area: heap; }
+  .server-region-inline { grid-area: server; display: none; }
+  body.lang-llm .memory-panel {
+    grid-template-areas:
+      "static static"
+      "stack stack"
+      "heap server";
+    grid-template-rows: auto auto 1fr;
+  }
+  body.lang-llm .server-region-inline {
+    display: block;
+    background: white; border-radius: 10px;
+    padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    border-top: 4px solid #f97316;
+  }
+  body.lang-llm .server-region-inline h3 {
+    font-size: 13px; margin-bottom: 9px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  body.lang-llm .server-region-inline .region-tag {
+    background: #fed7aa; color: #c2410c;
+    font-size: 10.5px; padding: 2px 8px; border-radius: 10px; font-weight: 500;
+  }
+  body.lang-llm .static-region { min-height: auto; padding: 10px 12px; }
+  body.lang-llm .stack-region { min-height: auto; max-height: 110px; overflow-y: auto; }
+  body.lang-llm .heap-region { min-height: 360px; }
+  .region {
+    background: white; border-radius: 10px; padding: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .region h3 {
+    font-size: 13px; margin-bottom: 9px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .region-tag {
+    font-size: 10.5px; padding: 2px 8px; border-radius: 10px; font-weight: 500;
+  }
+  .static-region { border-top: 4px solid #a78bfa; min-height: 90px; }
+  .static-region .region-tag { background: #ede9fe; color: #6d28d9; }
+  .stack-heap { display: contents; }
+  .stack-region { border-top: 4px solid #60a5fa; min-height: 280px; }
+  .stack-region .region-tag { background: #dbeafe; color: #1d4ed8; }
+  .heap-region { border-top: 4px solid #34d399; min-height: 280px; }
+  .heap-region .region-tag { background: #d1fae5; color: #047857; }
+
+  .frame {
+    background: #eff6ff; border: 1px solid #93c5fd;
+    border-radius: 5px; padding: 7px 9px; margin-bottom: 6px;
+    font-family: 'Menlo', monospace; font-size: 11.5px;
+    animation: slideIn 0.25s ease-out;
+  }
+  .frame-name {
+    font-weight: 700; color: #1d4ed8;
+    margin-bottom: 3px; font-size: 10.5px;
+    letter-spacing: 0.3px;
+  }
+  .frame-var { padding-left: 6px; color: #1e293b; line-height: 1.55; }
+  .var-name { color: #7c3aed; font-weight: 600; }
+  .var-ref { color: #047857; font-weight: 700; }
+
+  .heap-obj {
+    background: #ecfdf5; border: 1px solid #6ee7b7;
+    border-radius: 5px; padding: 7px 9px; margin-bottom: 6px;
+    font-family: 'Menlo', monospace; font-size: 11.5px;
+    animation: slideIn 0.25s ease-out;
+    transition: all 0.3s;
+  }
+  .heap-obj.fn-obj {
+    background: #fef3c7; border-color: #fcd34d;
+  }
+  .heap-obj.fn-obj .obj-id { color: #92400e; }
+  .heap-obj.chat-msg { padding: 8px 10px; }
+  .heap-obj.chat-user {
+    background: #dbeafe; border-color: #93c5fd;
+  }
+  .heap-obj.chat-user .obj-id { color: #1e40af; }
+  .heap-obj.chat-assistant {
+    background: #fef9c3; border-color: #fde047;
+  }
+  .heap-obj.chat-assistant .obj-id { color: #854d0e; }
+  .heap-obj.chat-system {
+    background: #ede9fe; border-color: #c4b5fd;
+  }
+  .heap-obj.chat-system .obj-id { color: #6d28d9; }
+  .chat-content {
+    padding: 4px 6px 0; line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 12px; color: #1e293b; white-space: pre-wrap;
+  }
+  #heap-items { max-height: 460px; overflow-y: auto; padding-right: 4px; }
+  .context-meter {
+    background: linear-gradient(to right, #fef3c7, #fde047);
+    border-radius: 5px; padding: 6px 10px; margin-bottom: 8px;
+    font-family: 'Menlo', monospace; font-size: 11px;
+    color: #78350f; font-weight: 600;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .gc-banner {
+    background: #fee2e2; border: 2px dashed #fca5a5;
+    color: #991b1b; padding: 10px; border-radius: 6px;
+    text-align: center; font-weight: 700; font-size: 12px;
+    margin-bottom: 8px; animation: slideIn 0.3s;
+  }
+
+  /* LLM extra panels (now decisions only, full width) */
+  .llm-extra {
+    display: none;
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  body.lang-llm .llm-extra { display: grid; }
+  /* Server received messages list (inside server panel) */
+  .server-received-list {
+    margin: 6px 0; border-radius: 4px;
+    background: rgba(255,255,255,0.06);
+    padding: 6px; max-height: 180px; overflow-y: auto;
+  }
+  .server-received-list .label-row {
+    color: #94a3b8; font-size: 10px; margin-bottom: 4px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .srv-msg {
+    font-size: 10.5px; padding: 4px 7px; margin-bottom: 3px;
+    border-radius: 3px; font-family: -apple-system, sans-serif;
+    line-height: 1.4; color: #e2e8f0;
+  }
+  .srv-msg .srv-role {
+    font-weight: 700; margin-right: 5px;
+  }
+  .srv-msg-system { background: rgba(167, 139, 250, 0.18); border-left: 2px solid #a78bfa; }
+  .srv-msg-system .srv-role { color: #c4b5fd; }
+  .srv-msg-user { background: rgba(96, 165, 250, 0.2); border-left: 2px solid #60a5fa; }
+  .srv-msg-user .srv-role { color: #93c5fd; }
+  .srv-msg-assistant { background: rgba(253, 224, 71, 0.18); border-left: 2px solid #fde047; }
+  .srv-msg-assistant .srv-role { color: #fde047; }
+  .server-panel { border-top: 4px solid #f97316; }
+  .server-panel .region-tag { background: #fed7aa; color: #c2410c; }
+  .decisions-panel { border-top: 4px solid #10b981; }
+  .decisions-panel .region-tag { background: #d1fae5; color: #047857; }
+  .server-state-box {
+    background: #1e293b; color: #e2e8f0;
+    border-radius: 6px; padding: 12px;
+    font-family: 'Menlo', monospace; font-size: 12px;
+    line-height: 1.7;
+    min-height: 240px;
+  }
+  .server-state-name {
+    font-size: 14px; font-weight: 700;
+    color: #fbbf24; margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #475569;
+  }
+  .server-detail-line {
+    color: #cbd5e1; padding: 2px 0;
+  }
+  .server-detail-line .label {
+    color: #94a3b8; margin-right: 6px;
+  }
+  .server-detail-line .value {
+    color: #f1f5f9;
+  }
+  .server-stateless-note {
+    margin-top: 10px; padding: 7px 10px;
+    background: #422006; border-left: 3px solid #fbbf24;
+    border-radius: 3px; font-size: 11px;
+    color: #fde68a; line-height: 1.5;
+  }
+  .server-attention-viz {
+    margin-top: 8px; padding: 8px;
+    background: #0f172a; border-radius: 4px;
+    text-align: center; font-size: 10px;
+    color: #94a3b8;
+  }
+  .md-viewer {
+    background: #fefce8; border: 1px solid #facc15;
+    border-radius: 6px; padding: 12px 14px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 12.5px; line-height: 1.6;
+    min-height: 240px; max-height: 320px; overflow-y: auto;
+  }
+  .md-h1 {
+    font-size: 14px; font-weight: 700; color: #0f172a;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #facc15;
+    margin-bottom: 8px;
+  }
+  .md-h2 {
+    font-size: 13px; font-weight: 600; color: #92400e;
+    margin-top: 10px; margin-bottom: 4px;
+  }
+  .md-bullet {
+    padding-left: 8px; color: #334155;
+  }
+  .md-new {
+    background: #fef08a; padding: 2px 6px;
+    border-radius: 3px; animation: slideIn 0.35s;
+  }
+  .md-blank { height: 4px; }
+  .md-empty {
+    color: #94a3b8; font-style: italic;
+    text-align: center; padding: 30px;
+  }
+  .md-preserved {
+    background: #ecfdf5; border: 1px dashed #34d399;
+    color: #065f46; padding: 6px 10px; border-radius: 4px;
+    font-size: 11px; margin-bottom: 8px;
+    text-align: center; font-weight: 600;
+  }
+  .heap-obj.unreachable {
+    opacity: 0.55; border-style: dashed;
+    background: #fef2f2; border-color: #fca5a5;
+  }
+  .heap-obj.unreachable .obj-id { color: #b91c1c; }
+  .gc-warn {
+    color: #dc2626; font-size: 9.5px; font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .obj-id {
+    font-weight: 700; color: #047857;
+    margin-bottom: 3px; font-size: 10.5px;
+  }
+  .obj-field { padding-left: 6px; line-height: 1.55; }
+
+  .static-item {
+    background: #f5f3ff; border: 1px solid #c4b5fd;
+    border-radius: 5px; padding: 6px 9px; margin-bottom: 5px;
+    font-family: 'Menlo', monospace; font-size: 11.5px;
+    color: #5b21b6; font-weight: 600;
+    animation: slideIn 0.25s ease-out;
+  }
+  .static-item.fn-item {
+    background: #fffbeb; border-color: #fcd34d; color: #92400e;
+  }
+  .empty {
+    color: #94a3b8; font-style: italic;
+    font-size: 12px; text-align: center; padding: 18px;
+  }
+  .lang-note {
+    background: #fef3c7; border-left: 3px solid #f59e0b;
+    padding: 9px 11px; border-radius: 3px;
+    font-size: 12px; line-height: 1.55; color: #78350f;
+    margin-bottom: 8px;
+  }
+  .lang-note strong { color: #92400e; }
+  .narration code, .lang-note code {
+    background: rgba(0,0,0,0.08); padding: 1px 5px;
+    border-radius: 3px; font-family: 'Menlo', monospace;
+    font-size: 0.9em; color: #1e293b;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .legend {
+    display: flex; gap: 14px; margin-top: 10px;
+    flex-wrap: wrap; font-size: 11px; color: #475569;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+  @media (max-width: 980px) {
+    .main { grid-template-columns: 1fr; }
+  }
+
+  /* ============ MULTI-AGENT TAB ============ */
+  body.lang-multi .main,
+  body.lang-multi .llm-extra { display: none !important; }
+  body.lang-multi .multi-section { display: flex; }
+  .multi-section {
+    display: none;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .multi-top {
+    display: grid;
+    grid-template-columns: 1fr 210px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  .ma-panel {
+    background: white; border-radius: 10px;
+    padding: 13px; box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .ma-title {
+    font-size: 13px; font-weight: 700;
+    padding-bottom: 8px; border-bottom: 2px solid currentColor;
+    margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+  }
+  .ma-status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #cbd5e1; display: inline-block; flex-shrink: 0;
+  }
+  .ma-status-dot.active { background: #22c55e; animation: maPulse 1.2s infinite; }
+  @keyframes maPulse {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.3; }
+  }
+  .multi-agent-label { font-size: 13px; font-weight: 700; }
+  .writing-indicator {
+    background: #fef3c7; border: 1px solid #fcd34d;
+    border-radius: 3px; padding: 1px 6px;
+    font-size: 10px; color: #92400e; font-weight: 600;
+    animation: maPulse 0.8s infinite; margin-left: 4px;
+  }
+  .ma-messages {
+    min-height: 200px; max-height: 270px;
+    overflow-y: auto; display: flex; flex-direction: column; gap: 5px;
+  }
+  .ma-msg {
+    font-size: 11.5px; line-height: 1.55;
+    padding: 6px 9px; border-radius: 5px;
+    animation: slideIn 0.3s;
+  }
+  .ma-msg-system  { background:#f3e8ff; border-left:3px solid #a78bfa; color:#4c1d95; }
+  .ma-msg-user    { background:#eff6ff; border-left:3px solid #60a5fa; color:#1e3a8a; }
+  .ma-msg-assistant { background:#f0fdf4; border-left:3px solid #34d399; color:#064e3b; }
+  .ma-msg-tool    { background:#fff7ed; border-left:3px solid #fb923c; color:#7c2d12;
+                    font-family:'Menlo',monospace; font-size:10.5px; }
+  .ma-role { font-weight:700; margin-right:5px; font-size:10px; text-transform:uppercase; }
+  .ma-offline { color:#94a3b8; font-style:italic; font-size:12px; text-align:center; padding:40px 10px; }
+  .ma-empty   { color:#94a3b8; font-style:italic; font-size:12px; text-align:center; padding:20px; }
+  .ma-shared-panel   { border-top: 4px solid #f59e0b; }
+  .ma-decision-panel { border-top: 4px solid #10b981; }
+  .ma-file-box {
+    background:#fefce8; border:1px solid #fde68a;
+    border-radius:6px; padding:10px 12px;
+    font-family:'Menlo',monospace; font-size:11px;
+    min-height:90px; max-height:170px; overflow-y:auto; line-height:1.7;
+  }
+  .ma-file-box.decision { background:#f0fdf4; border-color:#bbf7d0; }
+  .ma-file-empty { color:#94a3b8; font-style:italic; text-align:center; padding:18px; }
+  .ma-file-line { padding:0; }
+  .ma-file-line.new { animation:slideIn 0.4s; font-weight:600; }
+  .ma-file-h1  { color:#0f172a; font-weight:700; }
+  .ma-file-h2  { color:#92400e; font-weight:600; margin-top:4px; }
+  .ma-file-h2d { color:#065f46; font-weight:600; margin-top:4px; }
+  .ma-file-bullet  { color:#334155; padding-left:8px; }
+  .ma-file-bulletd { color:#047857; padding-left:8px; }
+  .ma-agent3-wrap { display:none; animation:slideIn 0.4s; }
+  .ma-agent3-wrap.visible { display:block; }
+  .ma-agent3-panel { border-top:4px solid #f43f5e; }
+  .ma-clean-badge {
+    background:#fef2f2; border:1px solid #fecaca;
+    border-radius:20px; padding:2px 10px;
+    font-size:10px; color:#991b1b; font-weight:600; margin-left:4px;
+  }
+  .ma-ctx-info { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+  .ma-ctx-badge {
+    background:#eff6ff; border:1px solid #bfdbfe;
+    border-radius:4px; padding:2px 8px; font-size:10px; color:#1e40af;
+  }
+  .ma-ctx-badge.blocked {
+    background:#fef2f2; border-color:#fecaca; color:#991b1b;
+    text-decoration:line-through;
+  }
+  .multi-bottom { display:flex; flex-direction:column; gap:8px; }
+  .multi-controls-row {
+    display:flex; gap:8px; align-items:center; flex-wrap:wrap;
+    background:white; border-radius:10px; padding:11px 14px;
+    box-shadow:0 1px 3px rgba(0,0,0,0.06);
+  }
+  .multi-controls-row button {
+    padding:7px 14px; background:#2563eb; color:white;
+    border:none; border-radius:5px; cursor:pointer;
+    font-size:13px; font-weight:500;
+  }
+  .multi-controls-row button:hover:not(:disabled) { background:#1d4ed8; }
+  .multi-controls-row button.secondary { background:#64748b; }
+  .multi-controls-row button.secondary:hover { background:#475569; }
+  .multi-controls-row button:disabled { background:#cbd5e1; cursor:not-allowed; }
+  .multi-step-info { margin-left:auto; color:#475569; font-size:13px; font-weight:500; }
+  .multi-narration {
+    padding:11px 14px; background:#eff6ff; border-left:4px solid #2563eb;
+    border-radius:4px; font-size:13px; line-height:1.65; min-height:72px;
+  }
+  .multi-narration strong { color:#1d4ed8; }
+  .multi-narration code {
+    background:rgba(0,0,0,0.08); padding:1px 5px;
+    border-radius:3px; font-family:'Menlo',monospace; font-size:0.9em;
+  }
+  .ma-token-bar {
+    display:flex; gap:6px; align-items:center; margin-top:8px;
+    font-size:11px; color:#64748b;
+  }
+  .ma-token-count {
+    background:#e2e8f0; border-radius:3px; padding:1px 7px;
+    font-family:'Menlo',monospace; font-weight:600; color:#334155;
+  }
+  @media (max-width:980px) {
+    .multi-top { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<!-- ======= OSD floating bar (injected) ======= -->
+<div id="osd-bar" role="navigation" aria-label="블로그 네비게이션">
+  <a href="../../index.html" class="osd-bar__brand" title="블로그 홈">◆ Diary</a>
+  <div class="osd-bar__title">메모리 시뮬레이터 — Java / JavaScript / Dart (확장판)</div>
+  <div class="osd-bar__actions">
+    <a href="../../index.html">← 목록</a>
+    <button type="button" id="osd-theme-toggle" aria-label="테마 전환">테마</button>
+  </div>
+</div>
+<!-- ======= /OSD floating bar ======= -->
+
+<script>
+  // Wrap body content so the light-mode filter applies only to wrapper, not to floating bar
+  (function(){
+    function wrap(){
+      var bar = document.getElementById('osd-bar');
+      var wrapper = document.createElement('div');
+      wrapper.id = 'osd-content-wrapper';
+      wrapper.style.cssText = 'transition: filter .25s;';
+      var nodes = Array.prototype.slice.call(document.body.childNodes);
+      nodes.forEach(function(n){ if (n === bar) return; wrapper.appendChild(n); });
+      document.body.appendChild(wrapper);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', wrap, { once: true });
+    } else { wrap(); }
+  })();
+</script>
+
+<script>
+  (function(){
+    var btn = document.getElementById('osd-theme-toggle');
+    if (!btn) return;
+    btn.addEventListener('click', function(){
+      var cur = document.documentElement.getAttribute('data-osd-theme') || 'dark';
+      var next = cur === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-osd-theme', next);
+      try { localStorage.setItem('blog-theme', next); } catch(e){}
+    });
+  })();
+</script>
+
+
+<div class="container">
+  <h1>🧠 메모리 시뮬레이터 (확장판)</h1>
+  <p class="subtitle">Counter 클래스 + <strong>static 변수(multiplier)</strong> + <strong>static 메서드(boost)</strong>를 세 언어로 구현하고 메모리 변화를 추적합니다. 네 번째 탭은 <strong>LLM의 context</strong>가 "GC 없는 heap"처럼 동작하는 모습을, 다섯 번째 탭은 <strong>멀티 에이전트 병렬 협업</strong>(공유 메모리 + 독립 컨텍스트)을 시각화해요.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-lang="java">☕ Java</button>
+    <button class="tab" data-lang="javascript">📜 JavaScript</button>
+    <button class="tab" data-lang="dart">🎯 Dart</button>
+    <button class="tab" data-lang="llm">🤖 LLM Context</button>
+    <button class="tab" data-lang="multi">🔀 LLM 멀티 Context</button>
+  </div>
+
+  <div class="main">
+    <div class="panel code-panel">
+      <pre id="code"></pre>
+      <div class="controls">
+        <button id="reset-btn" class="secondary">⟲ 리셋</button>
+        <button id="prev-btn" class="secondary">◀ 이전</button>
+        <button id="step-btn">▶ 다음</button>
+        <button id="auto-btn">▶▶ 자동재생</button>
+        <span class="step-info" id="step-info">0 / 0</span>
+      </div>
+      <div class="narration" id="narration">▶ 다음 버튼(또는 스페이스바)을 눌러 시작하세요. 키보드: ←→ 이동, R 리셋, 1·2·3 탭 전환.</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>Static</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span>Stack</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#34d399"></span>Heap (객체)</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fcd34d"></span>Heap (함수)</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fca5a5"></span>GC 대상</div>
+      </div>
+    </div>
+
+    <div class="memory-panel">
+      <div class="region static-region">
+        <h3><span id="static-title">📌 Static 영역</span> <span class="region-tag" id="static-tag">클래스/코드 · 앱 수명</span></h3>
+        <div id="static-items"></div>
+      </div>
+      <div class="stack-heap">
+        <div class="region stack-region">
+          <h3><span id="stack-title">📚 Stack</span> <span class="region-tag" id="stack-tag">함수 호출 프레임</span></h3>
+          <div id="stack-items"></div>
+        </div>
+        <div class="region heap-region">
+          <h3><span id="heap-title">🌳 Heap</span> <span class="region-tag" id="heap-tag">객체 · GC</span></h3>
+          <div id="heap-items"></div>
+        </div>
+      </div>
+      <div class="region server-region-inline" id="server-region-inline">
+        <h3>🖥️ LLM Server <span class="region-tag">stateless · 매 요청마다 새로 시작</span></h3>
+        <div class="server-state-box" id="server-state">대기중</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="llm-extra" id="llm-extra">
+    <div class="panel decisions-panel">
+      <h3>📝 decisions.md <span class="region-tag">디스크 파일 · /clear와 무관하게 영구</span></h3>
+      <div class="md-viewer" id="decisions-content"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ====== MULTI-AGENT SECTION ====== -->
+<div class="multi-section container" id="multi-section">
+  <!-- Top row: Agent1 | shared.md + decision.md | Agent2 -->
+  <div class="multi-top">
+    <!-- Agent 1: Design -->
+    <div class="ma-panel" id="ma-panel1" style="border-top:4px solid #8b5cf6">
+      <div class="ma-title" style="color:#8b5cf6; border-bottom-color:#8b5cf6">
+        <span class="ma-status-dot" id="ma-dot1"></span>
+        <span class="multi-agent-label">🎨 터미널 1 — Design Agent</span>
+        <span class="writing-indicator" id="ma-writing1" style="display:none">작성중…</span>
+      </div>
+      <div class="ma-messages" id="ma-msgs1">
+        <div class="ma-offline">⚫ 대기 중… 터미널을 열어주세요</div>
+      </div>
+      <div class="ma-token-bar" id="ma-tokens1" style="display:none">
+        📊 컨텍스트: <span class="ma-token-count" id="ma-tok1-val">0</span> 토큰
+      </div>
+    </div>
+
+    <!-- Center: shared.md + decision.md -->
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="ma-panel ma-shared-panel">
+        <div class="ma-title" style="color:#b45309; border-bottom-color:#f59e0b; font-size:12px">
+          🔗 shared.md
+          <span style="font-size:10px;color:#92400e;font-weight:400;margin-left:4px">공유 메모리</span>
+        </div>
+        <div class="ma-file-box" id="ma-shared-box">
+          <div class="ma-file-empty">📄 비어있음</div>
+        </div>
+      </div>
+      <div class="ma-panel ma-decision-panel">
+        <div class="ma-title" style="color:#059669; border-bottom-color:#10b981; font-size:12px">
+          📋 decision.md
+          <span style="font-size:10px;color:#065f46;font-weight:400;margin-left:4px">확정 결정만</span>
+        </div>
+        <div class="ma-file-box decision" id="ma-decision-box">
+          <div class="ma-file-empty">📄 비어있음</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent 2: Backend -->
+    <div class="ma-panel" id="ma-panel2" style="border-top:4px solid #0891b2">
+      <div class="ma-title" style="color:#0891b2; border-bottom-color:#0891b2">
+        <span class="ma-status-dot" id="ma-dot2"></span>
+        <span class="multi-agent-label">⚙️ 터미널 2 — Backend Agent</span>
+        <span class="writing-indicator" id="ma-writing2" style="display:none">작성중…</span>
+      </div>
+      <div class="ma-messages" id="ma-msgs2">
+        <div class="ma-offline">⚫ 대기 중… 터미널을 열어주세요</div>
+      </div>
+      <div class="ma-token-bar" id="ma-tokens2" style="display:none">
+        📊 컨텍스트: <span class="ma-token-count" id="ma-tok2-val">0</span> 토큰
+      </div>
+    </div>
+  </div>
+
+  <!-- Agent 3: Test (appears at step 7) -->
+  <div class="ma-agent3-wrap" id="ma-agent3-wrap">
+    <div class="ma-panel ma-agent3-panel">
+      <div class="ma-title" style="color:#f43f5e; border-bottom-color:#f43f5e">
+        <span class="ma-status-dot" id="ma-dot3"></span>
+        <span class="multi-agent-label">🧪 터미널 3 — Test Agent</span>
+        <span class="ma-clean-badge">🧹 Clean Context</span>
+        <span class="writing-indicator" id="ma-writing3" style="display:none">작성중…</span>
+      </div>
+      <div class="ma-ctx-info" id="ma-ctx3">
+        <span class="ma-ctx-badge blocked">❌ Design 대화 히스토리</span>
+        <span class="ma-ctx-badge blocked">❌ Backend 대화 히스토리</span>
+        <span class="ma-ctx-badge">✅ decision.md 내용만 주입</span>
+      </div>
+      <div class="ma-messages" id="ma-msgs3">
+        <div class="ma-offline">⚫ 대기 중…</div>
+      </div>
+      <div class="ma-token-bar" id="ma-tokens3" style="display:none">
+        📊 컨텍스트: <span class="ma-token-count" id="ma-tok3-val">0</span> 토큰
+        &nbsp;|&nbsp; 절약: <span class="ma-token-count" style="background:#dcfce7;color:#166534" id="ma-tok3-save">-</span> 토큰
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="multi-bottom">
+    <div class="multi-controls-row">
+      <button id="ma-reset-btn" class="secondary">⟲ 리셋</button>
+      <button id="ma-prev-btn" class="secondary">◀ 이전</button>
+      <button id="ma-step-btn">▶ 다음</button>
+      <button id="ma-auto-btn">▶▶ 자동재생</button>
+      <span class="multi-step-info" id="ma-step-info">0 / 0</span>
+    </div>
+    <div class="multi-narration" id="ma-narration">
+      ▶ 다음 버튼으로 멀티 에이전트 병렬 협업을 시뮬레이션하세요.<br>
+      두 Agent가 <strong>독립적인 컨텍스트</strong>로 일하면서 <code>shared.md</code>로 조율하고, 확정 결정은 <code>decision.md</code>에 기록합니다. 세 번째 세션은 <strong>깨끗한 컨텍스트</strong>로 열려 결정사항만 보고 통합 테스트를 작성해요.
+    </div>
+  </div>
+</div>
+
+<script>
+// ============== DATA ==============
+const examples = {
+  java: {
+    code: `class Counter {
+    static int totalCount = 0;
+    int value = 0;
+
+    void increment(int amount) {
+        int oldValue = value;
+        value = oldValue + amount;
+        totalCount++;
+    }
+}
+
+public class App {
+    static int multiplier = 2;
+
+    static void boost(Counter c, int amount) {
+        c.increment(amount * multiplier);
+    }
+
+    public static void main(String[] args) {
+        Counter c1 = new Counter();
+        App.boost(c1, 5);
+    }
+}`,
+    staticNote: "💡 <strong>Java는 클래스 밖에 변수/함수를 둘 수 없어요.</strong> top-level처럼 쓰려면 static 필드/메서드로 클래스 안에 넣어야 합니다. multiplier → static 필드, boost → static 메서드로 선언해서 사용해요.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        narration: "프로그램 시작 전. ▶ 다음 버튼을 눌러 진행하세요." },
+      { line: 2,
+        static: [{k:"Counter.totalCount", v:"0"}],
+        stack: [], heap: [],
+        narration: "JVM이 <strong>Counter 클래스</strong>를 Method Area에 로딩. static 필드 <code>totalCount=0</code> 즉시 초기화, increment 메서드 바이트코드도 같은 영역에 등록돼요." },
+      { line: 13,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [], heap: [],
+        narration: "<strong>App 클래스</strong> 로딩. 클래스 밖 변수처럼 쓰고 싶은 <strong>multiplier → static 필드(2)</strong>, 어디서든 호출할 수 있는 <strong>boost → static 메서드(바이트코드)</strong>로 Static 영역에 등록. Java는 진짜 top-level 선언이 없어서 클래스 안에 static으로 넣는 게 관례예요." },
+      { line: 19,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [{name:"main", vars:[{n:"args", v:"String[0]"}]}],
+        heap: [],
+        narration: "JVM이 <strong>main() 호출</strong>. Stack에 main 프레임 push — 지역변수 테이블이 생겨요." },
+      { line: 20,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [{name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]}],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "<code>new Counter()</code>로 객체 #1이 <strong>Heap에 생성</strong>. Stack의 지역변수 c1은 #1 주소(참조)를 저장해요. 실제 데이터(value, totalCount)는 Heap에 있고 Stack엔 주소만 있습니다." },
+      { line: 21,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "<code>App.boost(c1, 5)</code> 호출 → <strong>boost 프레임 push</strong>. 매개변수 c는 #1 참조 복사, amount=5. Static의 바이트코드를 실행하는 것이지, 새 객체가 생기는 건 아니에요." },
+      { line: 16,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "boost 안에서 <strong>Static의 App.multiplier(=2)</strong>를 읽어 5×2=10 계산. <code>c.increment(10)</code> → <strong>increment 프레임 push</strong>. this=#1, amount=10." },
+      { line: 6,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "<code>int oldValue = value</code> → Stack 지역변수 oldValue=0 저장. Heap #1.value는 아직 0." },
+      { line: 7,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "<code>value = oldValue + amount</code> → <strong>Heap의 #1.value = 10으로 갱신</strong>. Stack의 oldValue는 읽기만 하고 Heap을 수정해요." },
+      { line: 8,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "<code>totalCount++</code> → <strong>Static의 Counter.totalCount = 1</strong>. 모든 Counter 인스턴스가 공유하는 값이에요." },
+      { line: 9,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "increment 종료 → <strong>프레임 pop</strong>. 지역변수 this, amount, oldValue 모두 사라져요. Heap #1은 그대로 남아있어요." },
+      { line: 17,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [{name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]}],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "boost 종료 → <strong>프레임 pop</strong>. main 프레임만 남아요." },
+      { line: 22,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [],
+        heap: [{id:1, type:"Counter", fields:{value:10}, unreachable:true}],
+        narration: "main 종료 → Stack 완전히 비워짐. Heap의 #1(Counter)은 아무도 참조하지 않으므로 <strong>GC 대상</strong>. <strong>Static의 multiplier(2), totalCount(1), 바이트코드는 클래스 unload 전까지 유지</strong>." }
+    ]
+  },
+
+  javascript: {
+    code: `// === ES5 스타일 (class 키워드 미사용) ===
+const Counter = function() {
+    this.value = 0;
+};
+Counter.totalCount = 0;
+Counter.prototype.increment = function(amount) {
+    let oldValue = this.value;
+    this.value = oldValue + amount;
+    Counter.totalCount++;
+};
+
+let multiplier = 2;
+
+function boost(counter, amount) {
+    counter.increment(amount * multiplier);
+}
+
+const c1 = new Counter();
+const action = boost;
+action(c1, 5);`,
+    staticNote: "⚠️ <strong>class 없이도 동일!</strong> ES6 <code>class</code>는 사실 이 패턴의 syntactic sugar예요. <strong><code>Counter.totalCount = 0</code>이 그저 함수 객체의 프로퍼티 할당</strong>이라는 게 ES5 스타일에선 한눈에 보입니다 — 자바의 <code>static</code>(별도 Method Area에 저장)과 완전히 다른 의미! Static 패널은 끝까지 비어있고, 모든 게 Heap에 있어요.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        narration: "프로그램 시작 전. ★ES5 스타일★ class 키워드 없이 동일한 Counter를 만들어요. \"static은 그저 함수 객체의 프로퍼티\"라는 게 명확하게 보일 겁니다." },
+      { line: 4, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1"}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0"}}
+        ],
+        narration: "<strong>const Counter = function() {...}</strong> 평가. JS 엔진이 <strong>두 객체를 자동 생성</strong>: ① Counter 함수 객체(#0) + ② Counter.prototype 객체(#1, 인스턴스들이 공유할 메서드 담을 곳). class 문법에선 숨겨져 있던 prototype이 ES5 스타일에선 명시적으로 보여요." },
+      { line: 5, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0"}}
+        ],
+        narration: "★결정적 한 줄★ <strong>Counter.totalCount = 0</strong>은 그냥 #0(함수 객체)의 totalCount 프로퍼티에 값 할당. class 문법의 <code>static totalCount = 0</code>과 <strong>메모리상 100% 동일</strong>. 이게 \"JS의 static = 단순 프로퍼티\"의 정체." },
+      { line: 10, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true}
+        ],
+        narration: "increment 메서드를 <strong>Counter.prototype에 추가</strong>. 새 함수 객체 #2가 만들어지고 prototype의 increment 프로퍼티가 가리킴. 모든 Counter 인스턴스가 prototype chain으로 이 메서드를 공유 사용." },
+      { line: 12, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true}
+        ],
+        narration: "★진짜 top-level★ <strong>let multiplier = 2</strong>가 global 스코프에 직접 저장. 클래스로 감쌀 필요 없어요." },
+      { line: 14, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true}
+        ],
+        narration: "<strong>function boost(...) {...}</strong> 선언으로 새 함수 객체 #3 생성. JS는 함수도 1급 객체." },
+      { line: 18, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:0, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "<strong>new Counter()</strong> — 새 인스턴스 #4 생성. value=0 초기화 + 내부 <code>[[Prototype]]</code> 슬롯이 #1을 가리킴. 그래서 c1.increment() 호출 시 prototype chain으로 #1→#2(increment)를 찾아 실행 가능." },
+      { line: 19, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:0, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "<strong>action = boost</strong> — #3을 가리키는 참조 하나 더. action과 boost가 같은 함수 객체를 가리킴. Java처럼 wrapper 객체 생성 없음." },
+      { line: 20, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]},
+          {name:"boost", vars:[{n:"counter", ref:4}, {n:"amount", v:"5"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:0, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "action(c1, 5) = boost(c1, 5). #3을 실행 — boost 컨텍스트 push. counter=#4, amount=5." },
+      { line: 15, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]},
+          {name:"boost", vars:[{n:"counter", ref:4}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:4}, {n:"amount", v:"10"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:0, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "boost는 outer scope에서 multiplier(2)를 찾아 5*2=10 계산. counter.increment(10) 호출 — c1엔 increment 없으니 <strong>[[Prototype]] 체인</strong>으로 #1→#2(increment)를 찾아 호출. 새 프레임 push." },
+      { line: 7, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]},
+          {name:"boost", vars:[{n:"counter", ref:4}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:4}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:0, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "let oldValue = this.value(0)." },
+      { line: 8, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]},
+          {name:"boost", vars:[{n:"counter", ref:4}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:4}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:0}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:10, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "#4.value = 10." },
+      { line: 9, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]},
+          {name:"boost", vars:[{n:"counter", ref:4}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:4}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:1}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:10, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "<strong>Counter.totalCount++</strong> — #0(함수 객체)의 totalCount 프로퍼티가 0→1. ★재확인★ 자바라면 Method Area 슬롯이 갱신되겠지만, JS는 그냥 Heap 함수 객체의 프로퍼티 갱신. <strong>같은 동작, 다른 메모리 모델</strong>." },
+      { line: 10, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]},
+          {name:"boost", vars:[{n:"counter", ref:4}, {n:"amount", v:"5"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:1}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:10, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "increment 컨텍스트 pop. 지역변수 사라짐." },
+      { line: 16, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:3}, {n:"c1", ref:4}, {n:"action", ref:3}]}],
+        heap: [
+          {id:0, type:"Counter (function)", fields:{name:"\"Counter\"", prototype:"→ #1", totalCount:1}, isFn:true},
+          {id:1, type:"Counter.prototype", fields:{constructor:"→ #0", increment:"→ #2"}},
+          {id:2, type:"Function (anonymous)", fields:{params:"(amount)"}, isFn:true},
+          {id:3, type:"Function \"boost\"", fields:{name:"\"boost\"", params:"(counter, amount)"}, isFn:true},
+          {id:4, type:"Counter instance", fields:{value:10, "[[Proto]]":"→ #1"}}
+        ],
+        narration: "boost 컨텍스트 pop. ★최종 결론★ class 없이도 totalCount가 1로 갱신됨 — \"static은 그저 함수 객체의 프로퍼티\"가 시각적으로 명확. class 문법은 이 패턴의 syntactic sugar일 뿐." }
+    ]
+  },
+
+  dart: {
+    code: `class Counter {
+    static int totalCount = 0;
+    int value = 0;
+
+    void increment(int amount) {
+        int oldValue = value;
+        value = oldValue + amount;
+        totalCount++;
+    }
+}
+
+int multiplier = 2;
+
+void boost(Counter counter, int amount) {
+    counter.increment(amount * multiplier);
+}
+
+void main() {
+    var c1 = Counter();
+    Function action = boost;
+    action(c1, 5);
+}`,
+    staticNote: "💡 <strong>Dart는 top-level 변수/함수를 그대로 지원</strong>합니다 (Java보다 자유롭고, JS와 비슷). 차이점: <strong>모든 top-level과 static은 lazy 초기화</strong> - 처음 접근될 때까지 메모리에 안 잡혀요.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        narration: "프로그램 시작 전. Dart VM이 isolate를 준비합니다(★각 isolate는 독립된 Heap★)." },
+      { line: 18,
+        static: [{k:"boost", v:"<top-level function>", fn:true}],
+        stack: [{name:"main", vars:[]}],
+        heap: [],
+        narration: "main() 호출. <strong>boost는 컴파일된 코드</strong>의 일부로 항상 접근 가능(코드 영역). 단 <strong>multiplier와 Counter.totalCount는 lazy</strong>여서 아직 초기화 안 됨!" },
+      { line: 19,
+        static: [{k:"boost", v:"<top-level function>", fn:true}],
+        stack: [{name:"main", vars:[{n:"c1", ref:1}]}],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "Counter() 호출(new 생략 가능). #1이 Heap에 생성. 인스턴스 필드 value는 즉시 초기화." },
+      { line: 20,
+        static: [{k:"boost", v:"<top-level function>", fn:true}],
+        stack: [{name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]}],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "★Dart 1급객체 함수★ <strong>Function action = boost</strong> - top-level 함수를 변수에 담아요. Dart는 함수 자체가 1급 객체라 변수 할당이 바로 돼요. (Java는 static 메서드를 변수로 넘기려면 functional interface가 필요하지만, Dart·JS는 그냥 변수에 담으면 끝!)" },
+      { line: 21,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "action(c1, 5) 호출 → boost 프레임 push. counter=#1, amount=5. (자바와 달리 lambda wrapper 없이 함수 자체가 호출됨)" },
+      { line: 15,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "★Lazy Init★ multiplier에 처음 접근하는 순간 <strong>2로 초기화</strong>되어 Static에 등장! amount*multiplier=10 계산 후 counter.increment(10) → 새 프레임 push." },
+      { line: 6,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "int oldValue = value(0)." },
+      { line: 7,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "#1.value = 10." },
+      { line: 8,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "★Lazy Init★ Counter.totalCount에 처음 접근하며 0으로 초기화 후 1로 증가. (multiplier가 step 6에서 먼저 lazy-init된 것과 같은 메커니즘)" },
+      { line: 9,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "increment 프레임 pop." },
+      { line: 16,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [{name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]}],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "boost 프레임 pop." },
+      { line: 22,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [],
+        heap: [{id:1, type:"Counter", fields:{value:10}, unreachable:true}],
+        narration: "main 종료. #1이 unreachable → Dart의 generational GC 대상. <strong>Static의 multiplier(2), totalCount(1), boost는 isolate가 종료될 때까지 유지</strong>. 다른 isolate가 있어도 이 메모리는 공유되지 않아요." }
+    ]
+  },
+
+  llm: {
+    panels: {
+      static: "📌 system_prompt",
+      staticTag: "영구 · 매 호출에 자동 첨부",
+      stack: "📚 현재 턴 입력",
+      stackTag: "transient",
+      heap: "🌳 Context (대화 누적)",
+      heapTag: "★GC 없음★"
+    },
+    code: `// === TODO 앱 기획 대화 (의사 코드) ===
+session.start()
+system_prompt = "당신은 프로젝트 기획 도우미"
+decisions = openFile("decisions.md")
+
+// === 1턴: 데이터 저장 결정 ===
+user_msg = "데이터 저장은 localStorage vs IndexedDB?"
+context.push(user_msg)
+response = llm.chat(context)
+context.push(response)
+decisions.append("1턴 결정: localStorage 사용")
+
+// === 2턴: 정렬 기준 결정 ===
+user_msg = "TODO 정렬은 생성순 vs 마감일?"
+context.push(user_msg)
+response = llm.chat(context)
+context.push(response)
+decisions.append("2턴 결정: 마감일 오름차순")
+
+// === 3턴: UI 프레임워크 결정 ===
+user_msg = "UI 프레임워크 React vs Vue?"
+context.push(user_msg)
+response = llm.chat(context)
+context.push(response)
+decisions.append("3턴 결정: React 채택")
+
+// ★LLM은 stateless — context는 무한 누적★
+// ★Attention★ 매 요청마다 모든 토큰 다시 분석
+
+// === /clear: context 비우기 ===
+context.clear()  // decisions.md는 그대로!
+
+// === decisions.md → 요약 → 재주입 ===
+summary = decisions.read().compress()
+context.push(summary)`,
+    staticNote: "💡 <strong>TODO 앱 기획 대화</strong> 시나리오 — 매 턴마다 진짜 결정(저장방식·정렬·UI)이 나옵니다. <strong>위 3패널(클라이언트) + 옆 LLM Server(받은 메시지 전체) + 아래 decisions.md(영구 기록)</strong>을 함께 보세요.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        server: {state:"오프라인", icon:"🌙", details:[], statelessNote:"LLM 서버는 요청이 와야 작동합니다."},
+        decisions: [],
+        narration: "세션 시작 전. ▶ 다음 버튼으로 진행. <strong>TODO 앱 기획 대화</strong> 시나리오 — 매 턴마다 데이터/정렬/UI 같은 진짜 설계 결정이 나옵니다." },
+      { line: 4,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [], heap: [],
+        server: {state:"대기중", icon:"💤", details:[{label:"🧠 상태:", value:"비어있음 (stateless)"}], statelessNote:"요청 없으면 안 함. 요청 와도 응답 후 모두 폐기."},
+        decisions: ["# TODO 앱 기획 결정사항"],
+        decNew: [0],
+        narration: "세션 시작. <strong>system_prompt</strong>(매 API 호출에 자동 첨부) + <strong>decisions.md</strong>(디스크 파일, 결정사항 누적용 헤더만 생성)." },
+      { line: 7,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [{name:"new_input", vars:[{n:"user_msg", v:"\"데이터 저장은 localStorage vs IndexedDB?\""}]}],
+        heap: [],
+        server: {state:"대기중", icon:"💤", details:[{label:"🧠 상태:", value:"빈 상태"}]},
+        decisions: ["# TODO 앱 기획 결정사항"],
+        narration: "1턴: 사용자가 첫 결정 항목인 <strong>데이터 저장 방식</strong>을 LLM에게 물어봄. Stack에 transient 상태." },
+      { line: 9,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [{name:"api.chat()", vars:[{n:"sending", v:"system + 1 msg"}, {n:"tokens", v:"24"}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"}
+        ],
+        meter: {turn:1, msgs:1, tokens:24},
+        server: {
+          state:"🔥 context 수신 + 응답 생성",
+          icon:"🔥",
+          details:[
+            {label:"🧮 attention:", value:"24×24 ≈ 576 가중치"},
+            {label:"🧠 내부 메모리:", value:"∅ (응답 후 폐기)"}
+          ],
+          receivedMessages:[
+            {role:"system", content:"당신은 프로젝트 기획 도우미"},
+            {role:"user", content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"}
+          ],
+          statelessNote:"위에 받은 메시지 전체를 attention으로 분석하고 응답 생성. 응답 후 모두 폐기."
+        },
+        decisions: ["# TODO 앱 기획 결정사항"],
+        narration: "★서버 패널★ LLM이 <strong>받은 메시지 전체</strong>를 표시합니다 — system_prompt + 1턴 user. attention으로 모든 토큰 분석 후 응답 생성." },
+      { line: 11,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."}
+        ],
+        meter: {turn:1, msgs:2, tokens:60},
+        server: {state:"대기중 (잊음)", icon:"💤", details:[{label:"🧠 상태:", value:"빈 상태"}], statelessNote:"방금 받은 context를 모두 폐기."},
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)"],
+        decNew: [1, 2, 3],
+        narration: "★진짜 결정★ assistant 의견 듣고 사용자가 <strong>localStorage로 결정</strong>. decisions.md에 1턴 결정 기록(노란 강조)." },
+      { line: 14,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [{name:"new_input", vars:[{n:"user_msg", v:"\"TODO 정렬은 생성순 vs 마감일?\""}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."}
+        ],
+        meter: {turn:1, msgs:2, tokens:60},
+        server: {state:"대기중", icon:"💤"},
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)"],
+        narration: "2턴: 다음 결정 항목 — <strong>정렬 기준</strong>에 대해 질문." },
+      { line: 16,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [{name:"api.chat()", vars:[{n:"sending", v:"system + 3 msgs"}, {n:"tokens", v:"82"}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"TODO 정렬은 생성순 vs 마감일?"}
+        ],
+        meter: {turn:2, msgs:3, tokens:82},
+        server: {
+          state:"🔥 context 수신 (1턴 + 2턴 모두 다시!)",
+          icon:"🔥",
+          details:[
+            {label:"🧮 attention:", value:"82×82 ≈ 6,724 가중치"},
+            {label:"⚠️ 주의:", value:"1턴 대화도 처음 보는 것처럼 다시 분석"},
+            {label:"🧠 내부 메모리:", value:"∅"}
+          ],
+          receivedMessages:[
+            {role:"system", content:"당신은 프로젝트 기획 도우미"},
+            {role:"user", content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+            {role:"assistant", content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."},
+            {role:"user", content:"TODO 정렬은 생성순 vs 마감일?"}
+          ],
+          statelessNote:"위 받은 메시지 보세요 — 1턴 대화(이미 끝난)가 이번 요청에 또 포함됨. LLM이 기억해서 본 게 아니라 클라이언트가 다시 보낸 것."
+        },
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)"],
+        narration: "★핵심★ 서버 패널의 <strong>받은 메시지 목록</strong>을 보세요. 1턴 user+assistant가 이번 요청에 또 들어가 있어요. 이게 \"context를 매번 다시 보낸다\"의 실체." },
+      { line: 18,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"TODO 정렬은 생성순 vs 마감일?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"마감일 우선이 직관적. null 항목은 후순위로 두는 게 일반적."}
+        ],
+        meter: {turn:2, msgs:4, tokens:118},
+        server: {state:"대기중 (또 잊음)", icon:"💤"},
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)", "", "## 2턴", "- 정렬: 마감일 오름차순, null은 후순위"],
+        decNew: [4, 5, 6],
+        narration: "★진짜 결정 2★ 사용자가 <strong>마감일 오름차순 + null 후순위</strong>로 결정. decisions.md에 2턴 결정 누적." },
+      { line: 21,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [{name:"new_input", vars:[{n:"user_msg", v:"\"UI 프레임워크 React vs Vue?\""}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"TODO 정렬은 생성순 vs 마감일?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"마감일 우선이 직관적. null 항목은 후순위로 두는 게 일반적."}
+        ],
+        meter: {turn:2, msgs:4, tokens:118},
+        server: {state:"대기중", icon:"💤"},
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)", "", "## 2턴", "- 정렬: 마감일 오름차순, null은 후순위"],
+        narration: "3턴: 마지막 결정 항목 — <strong>UI 프레임워크</strong>." },
+      { line: 23,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [{name:"api.chat()", vars:[{n:"sending", v:"system + 5 msgs"}, {n:"tokens", v:"140"}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"TODO 정렬은 생성순 vs 마감일?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"마감일 우선이 직관적. null 항목은 후순위로 두는 게 일반적."},
+          {kind:"chat-user", role:"👤 User", turn:3, content:"UI 프레임워크 React vs Vue?"}
+        ],
+        meter: {turn:3, msgs:5, tokens:140},
+        server: {
+          state:"🥵 점점 무거워짐",
+          icon:"🥵",
+          details:[
+            {label:"🧮 attention:", value:"140×140 ≈ 19,600 가중치 (O(n²))"},
+            {label:"💰 토큰 비용:", value:"매 요청마다 누적 토큰 청구"},
+            {label:"🧠 내부 메모리:", value:"∅"}
+          ],
+          receivedMessages:[
+            {role:"system", content:"당신은 프로젝트 기획 도우미"},
+            {role:"user", content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+            {role:"assistant", content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."},
+            {role:"user", content:"TODO 정렬은 생성순 vs 마감일?"},
+            {role:"assistant", content:"마감일 우선이 직관적. null 항목은 후순위로 두는 게 일반적."},
+            {role:"user", content:"UI 프레임워크 React vs Vue?"}
+          ],
+          statelessNote:"3턴까지 오니 1턴부터 6개 메시지 전체를 다시 분석. 같은 1턴 대화를 매 턴 또 보는 비효율."
+        },
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)", "", "## 2턴", "- 정렬: 마감일 오름차순, null은 후순위"],
+        narration: "★점점 무거워짐★ 서버 패널의 받은 메시지 목록이 6개로 늘어남. attention 비용 O(n²)로 증가." },
+      { line: 25,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"데이터 저장은 localStorage vs IndexedDB 뭐가 좋을까?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"단순 TODO면 localStorage(5MB)로 충분. 검색·인덱스 필요하면 IndexedDB."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"TODO 정렬은 생성순 vs 마감일?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"마감일 우선이 직관적. null 항목은 후순위로 두는 게 일반적."},
+          {kind:"chat-user", role:"👤 User", turn:3, content:"UI 프레임워크 React vs Vue?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:3, content:"React가 생태계 크고, Vue는 학습 곡선 완만. 팀 익숙도 우선."}
+        ],
+        meter: {turn:3, msgs:6, tokens:175},
+        server: {state:"대기중 (또 잊음)", icon:"💤"},
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)", "", "## 2턴", "- 정렬: 마감일 오름차순, null은 후순위", "", "## 3턴", "- UI 프레임워크: React (생태계 + 익숙함)"],
+        narration: "★진짜 결정 3★ <strong>React 채택</strong> 확정 → decisions.md에 기록 완료. context heap이 6개 메시지로 꽉 참 — LLM은 매 요청마다 이 전체를 다시 읽어야 해요." },
+      { line: 38,
+        static: [{k:"system_prompt", v:"\"당신은 프로젝트 기획 도우미\""}],
+        stack: [{name:"context.clear()", vars:[{n:"before", v:"6 msgs (175 tokens)"},{n:"after", v:"0 msgs (45 tokens)"}]}],
+        heap: [{kind:"chat-user", role:"📝 Summary (재주입)", turn:"-", content:"[decisions.md 압축 요약] ①localStorage ②마감일순 ③React — 이것만 context에 재주입."}],
+        meter: {turn:3, msgs:1, tokens:45},
+        server: {state:"대기중", icon:"💤",
+          details:[
+            {label:"💡 효과:", value:"context.clear() 후 decisions.md 요약만 재주입"},
+            {label:"💰 토큰:", value:"175 → 45 (74% 절약!)"},
+            {label:"🧠 내부 메모리:", value:"∅ (여전히 stateless)"}
+          ]
+        },
+        decisions: ["# TODO 앱 기획 결정사항", "", "## 1턴", "- 데이터 저장: localStorage 사용 (5MB 이내 소규모)", "", "## 2턴", "- 정렬: 마감일 오름차순, null은 후순위", "", "## 3턴", "- UI 프레임워크: React (생태계 + 익숙함)"],
+        narration: "★핵심 통찰★ LLM context = <strong>GC 없는 heap</strong>. 메시지가 무한 누적되면 비용↑ 성능↓. <strong>decisions.md</strong>로 외부 기억을 분리하면 언제든 context를 비우고 요약만 재주입 가능. 다음 탭 <strong>🔀 LLM 멀티 Context</strong>에서 여러 에이전트가 독립 context로 협업하는 패턴을 확인하세요!" }
+    ]
+  }
+};
+
+// ============== HELPERS ==============
+function escapeHtml(str) {
+  if (typeof str !== 'string') str = String(str ?? '');
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ============== STATE ==============
+let currentLang = 'java';
+let stepIdx = 0;
+let autoTimer = null;
+
+// ============== RENDER ==============
+function render() {
+  if (currentLang === 'multi') { renderMulti(); return; }
+
+  const ex = examples[currentLang];
+  const step = ex.steps[stepIdx];
+
+  // Body class
+  document.body.className = currentLang === 'llm' ? 'lang-llm' : '';
+
+  // Code panel
+  const lines = ex.code.split('\n');
+  const codeEl = document.getElementById('code');
+  codeEl.innerHTML = lines.map((l, i) => {
+    const ln = i + 1;
+    const active = ln === step.line ? ' active' : '';
+    return `<span class="code-line${active}"><span class="ln">${ln}</span>${escapeHtml(l)}</span>`;
+  }).join('\n');
+  // Scroll active line into view
+  const activeLine = codeEl.querySelector('.active');
+  if (activeLine) activeLine.scrollIntoView({block:'nearest'});
+
+  // Panel titles
+  if (ex.panels) {
+    const p = ex.panels;
+    document.getElementById('static-title').textContent = p.static || '📌 Static';
+    document.getElementById('stack-title').textContent  = p.stack  || '📚 Stack';
+    document.getElementById('heap-title').textContent   = p.heap   || '🌳 Heap';
+    const stEl = document.getElementById('static-tag');
+    const skEl = document.getElementById('stack-tag');
+    const hpEl = document.getElementById('heap-tag');
+    if (stEl) stEl.textContent = p.staticTag || '';
+    if (skEl) skEl.textContent = p.stackTag  || '';
+    if (hpEl) hpEl.textContent = p.heapTag   || '';
+  }
+
+  // Static
+  const staticEl = document.getElementById('static-items');
+  let staticHtml = '';
+  if (ex.staticNote) staticHtml += `<div class="lang-note">${ex.staticNote}</div>`;
+  if (!step.static || step.static.length === 0) {
+    staticHtml += '<div class="empty">비어있음</div>';
+  } else {
+    staticHtml += step.static.map(s =>
+      `<div class="static-item ${s.fn ? 'fn-item' : ''}">${escapeHtml(s.k)} = ${escapeHtml(s.v)}</div>`
+    ).join('');
+  }
+  staticEl.innerHTML = staticHtml;
+
+  // Stack
+  const stackEl = document.getElementById('stack-items');
+  if (!step.stack || step.stack.length === 0) {
+    stackEl.innerHTML = '<div class="empty">비어있음</div>';
+  } else {
+    stackEl.innerHTML = step.stack.map(f => {
+      const vars = (f.vars || []).map(v => {
+        const isArrow = typeof v.v === 'string' && v.v.startsWith('→');
+        const display = isArrow ? v.v : v.v;
+        return `<div class="frame-var"><span class="var-name">${escapeHtml(v.n)}</span>: <span class="${isArrow ? 'var-ref' : ''}">${escapeHtml(display)}</span></div>`;
+      }).join('');
+      return `<div class="stack-frame"><div class="frame-name">▼ ${escapeHtml(f.name)}()</div>${vars}</div>`;
+    }).join('');
+  }
+
+  // Heap
+  const heapEl = document.getElementById('heap-items');
+  let heapHtml = '';
+  if (step.meter) {
+    heapHtml += `<div class="context-meter"><span>📊 턴 ${step.meter.turn} · 메시지 ${step.meter.msgs}개</span><span>~${step.meter.tokens} 토큰</span></div>`;
+  }
+  if (step.gcBanner) {
+    heapHtml += `<div class="gc-banner">${step.gcBanner}</div>`;
+  }
+  if (!step.heap || step.heap.length === 0) {
+    heapHtml += '<div class="empty">비어있음</div>';
+  } else {
+    const decNewSet = new Set(step.decNew || []);
+    step.heap.forEach((o, idx) => {
+      if (o.kind === 'chat-user' || o.kind === 'chat-assistant') {
+        const cls = o.kind === 'chat-user' ? 'heap-obj chat-msg user-msg' : 'heap-obj chat-msg asst-msg';
+        heapHtml += `<div class="${cls}">
+          <div class="obj-id">${escapeHtml(o.role || '')} · 턴 ${o.turn || '-'}</div>
+          <div class="chat-content">${escapeHtml(o.content)}</div>
+        </div>`;
+      } else {
+        const unreach = o.unreachable ? ' unreachable' : '';
+        const fields = Object.entries(o.fields || {}).map(([k, val]) => {
+          const isArrow = typeof val === 'string' && val.startsWith('→');
+          return `<div class="obj-field"><span class="var-name">${escapeHtml(k)}</span>: <span class="${isArrow ? 'var-ref' : ''}">${escapeHtml(String(val))}</span></div>`;
+        }).join('');
+        heapHtml += `<div class="heap-obj${unreach}">
+          ${o.unreachable ? '<div class="gc-warn">⚠ GC 대상 (unreachable)</div>' : ''}
+          <div class="obj-id">#${o.id} · ${escapeHtml(o.type)}</div>
+          ${fields}
+        </div>`;
+      }
+    });
+  }
+  heapEl.innerHTML = heapHtml;
+
+  // Server panel (LLM only)
+  if (currentLang === 'llm') {
+    const srv = step.server || {};
+    let serverHtml = `<div class="server-state-name">${srv.icon || '⚙️'} ${escapeHtml(srv.state || '')}</div>`;
+    if (srv.details && srv.details.length) {
+      serverHtml += srv.details.map(d =>
+        `<div class="server-detail-line"><span class="label">${escapeHtml(d.label)}</span><span class="value">${escapeHtml(d.value)}</span></div>`
+      ).join('');
+    }
+    if (srv.receivedMessages && srv.receivedMessages.length) {
+      serverHtml += `<div class="server-received-list"><div class="label-row">📥 받은 메시지 (이번 요청에 포함된 전체):</div>`;
+      serverHtml += srv.receivedMessages.map(m => {
+        const rl = m.role;
+        const cls = `srv-msg srv-msg-${rl}`;
+        return `<div class="${cls}"><span class="srv-role">[${rl.toUpperCase()}]</span>${escapeHtml(m.content)}</div>`;
+      }).join('');
+      serverHtml += `</div>`;
+    }
+    if (srv.attentionViz) {
+      serverHtml += `<div class="server-attention-viz">${srv.attentionViz}</div>`;
+    }
+    if (srv.statelessNote) {
+      serverHtml += `<div class="server-stateless-note">${srv.statelessNote}</div>`;
+    }
+    document.getElementById('server-state').innerHTML = serverHtml;
+
+    // Decisions panel
+    const decEl = document.getElementById('decisions-content');
+    if (!step.decisions || step.decisions.length === 0) {
+      decEl.innerHTML = '<div class="md-empty">📄 비어있음 (아직 결정 없음)</div>';
+    } else {
+      const decNew = new Set(step.decNew || []);
+      decEl.innerHTML = step.decisions.map((line, i) => {
+        const newCls = decNew.has(i) ? ' md-new' : '';
+        if (line === '') return '<div class="md-blank"></div>';
+        if (line.startsWith('## ')) return `<div class="md-h2${newCls}">${escapeHtml(line)}</div>`;
+        if (line.startsWith('# '))  return `<div class="md-h1${newCls}">${escapeHtml(line)}</div>`;
+        return `<div class="md-bullet${newCls}">${escapeHtml(line)}</div>`;
+      }).join('');
+    }
+    // LLM extra panels visibility already handled by CSS body.lang-llm
+  }
+
+  // Narration
+  document.getElementById('narration').innerHTML = step.narration || '';
+
+  // Step counter
+  document.getElementById('step-info').textContent = `${stepIdx} / ${ex.steps.length - 1}`;
+
+  // Buttons
+  document.getElementById('prev-btn').disabled = stepIdx === 0;
+  document.getElementById('step-btn').disabled = stepIdx >= ex.steps.length - 1;
+}
+
+function step() {
+  const ex = examples[currentLang];
+  if (currentLang === 'multi') { multiStep < multiSteps.length - 1 && (multiStep++, renderMulti()); return; }
+  if (stepIdx < ex.steps.length - 1) { stepIdx++; render(); }
+}
+
+function prev() {
+  if (currentLang === 'multi') { multiStep > 0 && (multiStep--, renderMulti()); return; }
+  if (stepIdx > 0) { stepIdx--; render(); }
+}
+
+function reset() {
+  stopAuto();
+  if (currentLang === 'multi') { multiReset(); return; }
+  stepIdx = 0;
+  render();
+}
+
+function startAuto() {
+  const interval = currentLang === 'multi' ? 2200 : 1400;
+  autoTimer = setInterval(() => {
+    if (currentLang === 'multi') {
+      if (multiStep >= multiSteps.length - 1) { stopAuto(); return; }
+      multiStep++; renderMulti();
+    } else {
+      const ex = examples[currentLang];
+      if (stepIdx >= ex.steps.length - 1) { stopAuto(); return; }
+      stepIdx++; render();
+    }
+  }, interval);
+  document.getElementById('auto-btn').textContent = '⏸ 일시정지';
+  const maBtn = document.getElementById('ma-auto-btn');
+  if (maBtn) maBtn.textContent = '⏸ 일시정지';
+}
+
+function stopAuto() {
+  clearInterval(autoTimer);
+  autoTimer = null;
+  document.getElementById('auto-btn').textContent = '▶▶ 자동재생';
+  const maBtn = document.getElementById('ma-auto-btn');
+  if (maBtn) maBtn.textContent = '▶▶ 자동재생';
+}
+
+function switchLang(lang) {
+  stopAuto();
+  currentLang = lang;
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.lang === lang);
+  });
+  if (lang === 'multi') {
+    document.body.className = 'lang-multi';
+    multiReset();
+  } else {
+    document.body.className = lang === 'llm' ? 'lang-llm' : '';
+    stepIdx = 0;
+    render();
+  }
+}
+
+// ============== EVENTS ==============
+document.getElementById('step-btn').addEventListener('click', step);
+document.getElementById('prev-btn').addEventListener('click', prev);
+document.getElementById('reset-btn').addEventListener('click', reset);
+document.getElementById('auto-btn').addEventListener('click', () => {
+  if (autoTimer) stopAuto(); else startAuto();
+});
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => switchLang(t.dataset.lang));
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space' || e.code === 'ArrowRight') {
+    e.preventDefault(); step();
+  } else if (e.code === 'ArrowLeft') {
+    e.preventDefault(); prev();
+  } else if (e.key === 'r' || e.key === 'R') {
+    reset();
+  } else if (e.key === '1') { switchLang('java'); }
+    else if (e.key === '2') { switchLang('javascript'); }
+    else if (e.key === '3') { switchLang('dart'); }
+    else if (e.key === '4') { switchLang('llm'); }
+    else if (e.key === '5') { switchLang('multi'); }
+});
+
+// ============== MULTI-AGENT SIMULATION ==============
+let multiStep = 0;
+let multiAutoTimer = null;
+
+const D1_MSGS_base = [
+  { role:'system',    text:'당신은 Todo 웹앱의 <strong>UI/UX 디자인 전문가</strong>입니다. 컴포넌트 구조, 색상, 사용성에 집중하세요. 백엔드 구현 세부사항은 담당하지 않습니다.' }
+];
+const D2_MSGS_base = [
+  { role:'system',    text:'당신은 Todo 웹앱의 <strong>백엔드/API 전문가</strong>입니다. REST API 설계, DB 스키마, 서버 로직에 집중하세요. UI/디자인 구현 세부사항은 담당하지 않습니다.' }
+];
+
+const multiSteps = [
+  // 0: 초기
+  {
+    narration: '두 터미널이 대기 중입니다. <strong>shared.md</strong>와 <strong>decision.md</strong>는 비어있어요. 각 Agent는 자신의 전문 영역만 담은 <strong>독립적인 컨텍스트</strong>를 가집니다. ▶ 다음을 눌러 시작하세요.',
+    a1:{ active:false, msgs:[], tok:0, writing:false },
+    a2:{ active:false, msgs:[], tok:0, writing:false },
+    a3:{ visible:false, active:false, msgs:[], tok:0, tokSave:0, writing:false },
+    shared:[], decision:[]
+  },
+  // 1: Design Agent 시작
+  {
+    narration: '🎨 <strong>터미널 1: Design Agent 열림</strong> — 시스템 프롬프트가 컨텍스트 맨 앞에 고정됩니다. "백엔드는 모른다"는 격리가 핵심.',
+    a1:{ active:true, writing:false, tok:85,
+      msgs:[...D1_MSGS_base]
+    },
+    a2:{ active:false, msgs:[], tok:0, writing:false },
+    a3:{ visible:false, active:false, msgs:[], tok:0, tokSave:0, writing:false },
+    shared:[], decision:[]
+  },
+  // 2: Backend Agent 시작 (병렬!)
+  {
+    narration: '⚙️ <strong>터미널 2: Backend Agent 열림</strong> — 동시에 두 에이전트가 병렬로 동작합니다. 각자 완전히 다른 컨텍스트를 가지며 서로의 대화 내용은 보이지 않아요.',
+    a1:{ active:true, writing:false, tok:85,
+      msgs:[...D1_MSGS_base]
+    },
+    a2:{ active:true, writing:false, tok:90,
+      msgs:[...D2_MSGS_base]
+    },
+    a3:{ visible:false, active:false, msgs:[], tok:0, tokSave:0, writing:false },
+    shared:[], decision:[]
+  },
+  // 3: Design Agent 작업 + shared.md 기록
+  {
+    narration: '🎨 Design Agent가 버튼 컴포넌트를 논의하고 <strong>shared.md에 진행상황을 기록</strong>합니다. 이렇게 하면 Backend Agent도 "UI 작업 중"임을 알 수 있어요.',
+    a1:{ active:true, writing:true, tok:240,
+      msgs:[
+        ...D1_MSGS_base,
+        { role:'user',      text:'Todo 앱 버튼 컴포넌트 디자인 어떻게 할까? Primary / Secondary 구분이 필요해.' },
+        { role:'assistant', text:'Material Design 3 기반 추천 — Primary: 배경 <code>#2563EB</code>(파랑), 텍스트 흰색, border-radius 8px. Secondary: 배경 흰색, 테두리 <code>#2563EB</code>. hover 시 opacity 0.9.' },
+        { role:'tool',      text:'→ <strong>write(shared.md)</strong>: "UI: 버튼 컴포넌트 논의 중 — Primary #2563EB 검토, border-radius 8px"' }
+      ]
+    },
+    a2:{ active:true, writing:false, tok:90,
+      msgs:[...D2_MSGS_base]
+    },
+    a3:{ visible:false, active:false, msgs:[], tok:0, tokSave:0, writing:false },
+    shared:[
+      '# shared.md — 멀티 에이전트 공유 메모리',
+      '',
+      '## [Design Agent 진행중]',
+      '- 버튼 컴포넌트 논의 중',
+      '- Primary Color: #2563EB 검토',
+      '- border-radius: 8px 검토'
+    ],
+    decision:[]
+  },
+  // 4: Backend Agent가 shared.md 읽고 작업
+  {
+    narration: '⚙️ Backend Agent가 <strong>shared.md를 읽어</strong> "UI 작업이 진행 중"임을 파악하고, 독립적으로 API 설계를 시작합니다. 디자인 대화 내용은 전혀 모르지만 조율은 됩니다!',
+    a1:{ active:true, writing:false, tok:240,
+      msgs:[
+        ...D1_MSGS_base,
+        { role:'user',      text:'Todo 앱 버튼 컴포넌트 디자인 어떻게 할까? Primary / Secondary 구분이 필요해.' },
+        { role:'assistant', text:'Material Design 3 기반 추천 — Primary: <code>#2563EB</code>, border-radius 8px. Secondary: 흰 배경 + 파란 테두리.' },
+        { role:'tool',      text:'→ write(shared.md): "UI: 버튼 컴포넌트 논의 중"' }
+      ]
+    },
+    a2:{ active:true, writing:true, tok:310,
+      msgs:[
+        ...D2_MSGS_base,
+        { role:'tool',      text:'← <strong>read(shared.md)</strong>: "UI: 버튼 컴포넌트 논의 중, Primary #2563EB 검토" — UI 팀 진행 확인' },
+        { role:'user',      text:'Todo API 엔드포인트 구조 설계해줘. CRUD 전체 필요해.' },
+        { role:'assistant', text:'REST /api/v1 패턴 추천 — <code>GET /api/v1/todos</code>, <code>POST /api/v1/todos</code>, <code>PATCH /api/v1/todos/:id</code>, <code>DELETE /api/v1/todos/:id</code>. 인증: JWT Bearer.' },
+        { role:'tool',      text:'→ <strong>write(shared.md)</strong>: "API: REST /api/v1 설계 중, JWT 인증 검토"' }
+      ]
+    },
+    a3:{ visible:false, active:false, msgs:[], tok:0, tokSave:0, writing:false },
+    shared:[
+      '# shared.md — 멀티 에이전트 공유 메모리',
+      '',
+      '## [Design Agent 진행중]',
+      '- 버튼 컴포넌트 논의 중',
+      '- Primary Color: #2563EB 검토',
+      '- border-radius: 8px 검토',
+      '',
+      '## [Backend Agent 진행중]',
+      '- API: REST /api/v1 설계 중',
+      '- 인증: JWT Bearer 검토'
+    ],
+    decision:[]
+  },
+  // 5: Design 결정 → decision.md
+  {
+    narration: '🎨 Design Agent가 최종 결정을 내리고 <strong>decision.md에 기록</strong>합니다. 이 파일은 임시 메모(shared.md)와 달리 <strong>확정된 내용만</strong> 담아요.',
+    a1:{ active:true, writing:true, tok:380,
+      msgs:[
+        ...D1_MSGS_base,
+        { role:'user',      text:'버튼 컴포넌트 디자인 어떻게 할까?' },
+        { role:'assistant', text:'Primary: <code>#2563EB</code>, border-radius 8px 추천.' },
+        { role:'tool',      text:'→ write(shared.md)' },
+        { role:'user',      text:'좋아, 확정하자. decision.md에 기록해줘.' },
+        { role:'assistant', text:'UI 결정사항을 decision.md에 기록하겠습니다.' },
+        { role:'tool',      text:'→ <strong>write(decision.md)</strong>: UI 디자인 결정 추가' }
+      ]
+    },
+    a2:{ active:true, writing:false, tok:310,
+      msgs:[
+        ...D2_MSGS_base,
+        { role:'tool',      text:'← read(shared.md)' },
+        { role:'user',      text:'API 구조 설계해줘.' },
+        { role:'assistant', text:'REST /api/v1, JWT 인증 추천.' },
+        { role:'tool',      text:'→ write(shared.md)' }
+      ]
+    },
+    a3:{ visible:false, active:false, msgs:[], tok:0, tokSave:0, writing:false },
+    shared:[
+      '# shared.md — 멀티 에이전트 공유 메모리',
+      '',
+      '## [Design Agent ✅ 결정 완료]',
+      '- Primary Color: #2563EB (확정)',
+      '- border-radius: 8px (확정)',
+      '- Font: Pretendard 16px (확정)',
+      '',
+      '## [Backend Agent 진행중]',
+      '- API: REST /api/v1 설계 중',
+      '- 인증: JWT Bearer 검토'
+    ],
+    decision:[
+      '# decision.md — 확정 결정사항',
+      '',
+      '## [UI/디자인]',
+      '- Primary Color: #2563EB (Blue)',
+      '- Button border-radius: 8px',
+      '- Font: Pretendard 16px/Bold'
+    ]
+  },
+  // 6: Backend 결정 → decision.md
+  {
+    narration: '⚙️ Backend Agent도 API 패턴을 확정하고 <strong>decision.md에 추가</strong>합니다. 두 에이전트는 서로의 대화를 모르지만, decision.md를 통해 결정사항은 한곳에 모입니다.',
+    a1:{ active:true, writing:false, tok:380,
+      msgs:[
+        ...D1_MSGS_base,
+        { role:'user', text:'버튼 컴포넌트 디자인 어떻게 할까?' },
+        { role:'assistant', text:'Primary: #2563EB, border-radius 8px.' },
+        { role:'tool', text:'→ write(shared.md)' },
+        { role:'user', text:'확정하자. decision.md에 기록해줘.' },
+        { role:'assistant', text:'UI 결정 기록 완료.' },
+        { role:'tool', text:'→ write(decision.md): UI 결정 추가' }
+      ]
+    },
+    a2:{ active:true, writing:true, tok:480,
+      msgs:[
+        ...D2_MSGS_base,
+        { role:'tool',      text:'← read(shared.md)' },
+        { role:'user',      text:'API 구조 설계해줘.' },
+        { role:'assistant', text:'REST /api/v1, JWT 인증 추천.' },
+        { role:'tool',      text:'→ write(shared.md)' },
+        { role:'user',      text:'확정. decision.md에 API 결정 기록해줘.' },
+        { role:'assistant', text:'API 결정사항을 decision.md에 기록하겠습니다.' },
+        { role:'tool',      text:'→ <strong>write(decision.md)</strong>: API 결정 추가' }
+      ]
+    },
+    a3:{ visible:false, active:false, msgs:[], tok:0, tokSave:0, writing:false },
+    shared:[
+      '# shared.md — 멀티 에이전트 공유 메모리',
+      '',
+      '## [Design Agent ✅ 완료]',
+      '- Primary Color: #2563EB (확정)',
+      '- border-radius: 8px (확정)',
+      '',
+      '## [Backend Agent ✅ 결정 완료]',
+      '- API: REST /api/v1 (확정)',
+      '- Auth: JWT Bearer (확정)',
+      '- Format: JSON (확정)'
+    ],
+    decision:[
+      '# decision.md — 확정 결정사항',
+      '',
+      '## [UI/디자인]',
+      '- Primary Color: #2563EB (Blue)',
+      '- Button border-radius: 8px',
+      '- Font: Pretendard 16px/Bold',
+      '',
+      '## [API/백엔드]',
+      '- Pattern: REST /api/v1/{resource}',
+      '- Auth: JWT Bearer Token',
+      '- Response Format: JSON'
+    ]
+  },
+  // 7: Session 3 열림 — Test Agent (Clean Context!)
+  {
+    narration: '🧪 <strong>터미널 3: Test Agent 열림!</strong> 이 에이전트는 <strong>깨끗한 컨텍스트</strong>로 시작합니다 — 디자인/백엔드 대화 히스토리는 전혀 없어요. <strong>decision.md 내용만</strong> 시스템 프롬프트에 주입됩니다.',
+    a1:{ active:true, writing:false, tok:380,
+      msgs:[
+        ...D1_MSGS_base,
+        { role:'user', text:'버튼 컴포넌트 디자인 어떻게 할까?' },
+        { role:'assistant', text:'Primary: #2563EB, border-radius 8px.' },
+        { role:'tool', text:'→ write(shared.md)' },
+        { role:'user', text:'확정. decision.md에 기록해줘.' },
+        { role:'assistant', text:'UI 결정 기록 완료.' },
+        { role:'tool', text:'→ write(decision.md)' }
+      ]
+    },
+    a2:{ active:true, writing:false, tok:480,
+      msgs:[
+        ...D2_MSGS_base,
+        { role:'tool', text:'← read(shared.md)' },
+        { role:'user', text:'API 구조 설계해줘.' },
+        { role:'assistant', text:'REST /api/v1, JWT 인증 추천.' },
+        { role:'tool', text:'→ write(shared.md)' },
+        { role:'user', text:'확정. decision.md에 기록해줘.' },
+        { role:'assistant', text:'API 결정 기록 완료.' },
+        { role:'tool', text:'→ write(decision.md)' }
+      ]
+    },
+    a3:{ visible:true, active:true, writing:false, tok:95, tokSave:0,
+      msgs:[
+        { role:'system', text:'당신은 <strong>통합 테스트 작성 전문가</strong>입니다. 아래 decision.md 내용을 기반으로 통합 테스트를 작성하세요. 디자인/백엔드 구현 대화는 알 필요 없습니다.<br><br><em>[decision.md 주입 완료]</em><br>- UI: Primary #2563EB, border-radius 8px<br>- API: REST /api/v1, JWT Auth' },
+        { role:'tool', text:'← <strong>read(decision.md)</strong>: UI 결정 + API 결정 로드 완료 (95 tokens)' }
+      ]
+    },
+    shared:[
+      '# shared.md — 멀티 에이전트 공유 메모리',
+      '',
+      '## [Design Agent ✅ 완료]',
+      '- Primary Color: #2563EB (확정)',
+      '## [Backend Agent ✅ 완료]',
+      '- API: REST /api/v1 (확정)',
+      '- Auth: JWT Bearer (확정)'
+    ],
+    decision:[
+      '# decision.md — 확정 결정사항',
+      '',
+      '## [UI/디자인]',
+      '- Primary Color: #2563EB (Blue)',
+      '- Button border-radius: 8px',
+      '- Font: Pretendard 16px/Bold',
+      '',
+      '## [API/백엔드]',
+      '- Pattern: REST /api/v1/{resource}',
+      '- Auth: JWT Bearer Token',
+      '- Response Format: JSON'
+    ]
+  },
+  // 8: Test Agent 통합 테스트 작성
+  {
+    narration: '🧪 Test Agent가 <strong>decision.md만 보고</strong> 통합 테스트를 작성합니다. 디자인 대화(380 tokens) + 백엔드 대화(480 tokens)는 전혀 없어도 테스트를 완성할 수 있어요. 컨텍스트 크기: <strong>95 → 620 tokens</strong> (디자인+백엔드 히스토리 없이!).',
+    a1:{ active:true, writing:false, tok:380,
+      msgs:[
+        ...D1_MSGS_base,
+        { role:'user', text:'버튼 컴포넌트 디자인 어떻게 할까?' },
+        { role:'assistant', text:'Primary: #2563EB, border-radius 8px.' },
+        { role:'tool', text:'→ write(decision.md)' }
+      ]
+    },
+    a2:{ active:true, writing:false, tok:480,
+      msgs:[
+        ...D2_MSGS_base,
+        { role:'tool', text:'← read(shared.md)' },
+        { role:'user', text:'API 구조 설계해줘.' },
+        { role:'assistant', text:'REST /api/v1, JWT 인증.' },
+        { role:'tool', text:'→ write(decision.md)' }
+      ]
+    },
+    a3:{ visible:true, active:true, writing:true, tok:620, tokSave:860,
+      msgs:[
+        { role:'system', text:'통합 테스트 전문가입니다. decision.md 기반으로 테스트 작성.<br><em>[decision.md 주입]</em>' },
+        { role:'tool', text:'← read(decision.md): UI + API 결정 로드' },
+        { role:'user', text:'decision.md에 있는 결정사항 기반으로 통합 테스트 작성해줘.' },
+        { role:'assistant', text:`<strong>테스트 작성 완료:</strong><br><br>
+<code>// todo.integration.test.ts</code><br>
+<code>describe('Todo API + UI 통합', () => {</code><br>
+<code>&nbsp; test('POST /api/v1/todos — JWT 인증', async () => {</code><br>
+<code>&nbsp;&nbsp;&nbsp; const res = await api.post('/api/v1/todos',</code><br>
+<code>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; { title:'Buy milk' }, { auth: jwtToken });</code><br>
+<code>&nbsp;&nbsp;&nbsp; expect(res.status).toBe(201);</code><br>
+<code>&nbsp; });</code><br>
+<code>&nbsp; test('버튼 Primary Color = #2563EB', () => {</code><br>
+<code>&nbsp;&nbsp;&nbsp; const btn = render(&lt;Button variant="primary"/&gt;);</code><br>
+<code>&nbsp;&nbsp;&nbsp; expect(btn).toHaveStyle('background:#2563EB');</code><br>
+<code>&nbsp; });</code><br>
+<code>});</code>` }
+      ]
+    },
+    shared:[
+      '# shared.md',
+      '## [Design ✅] Primary #2563EB, radius 8px',
+      '## [Backend ✅] REST /api/v1, JWT'
+    ],
+    decision:[
+      '# decision.md — 확정 결정사항',
+      '',
+      '## [UI/디자인]',
+      '- Primary Color: #2563EB (Blue)',
+      '- Button border-radius: 8px',
+      '- Font: Pretendard 16px/Bold',
+      '',
+      '## [API/백엔드]',
+      '- Pattern: REST /api/v1/{resource}',
+      '- Auth: JWT Bearer Token',
+      '- Response Format: JSON'
+    ]
+  },
+  // 9: 완료 요약
+  {
+    narration: '✅ <strong>멀티 에이전트 협업 완료!</strong><br><br>핵심 패턴: ① 각 Agent는 <strong>독립 컨텍스트</strong>로 섞임 없이 병렬 작업 ② <code>shared.md</code>로 진행상황 공유 ③ 확정된 결정은 <code>decision.md</code>에 기록 ④ Test Agent는 <strong>깨끗한 컨텍스트</strong>에서 decision.md만 보고 테스트 작성 — 디자인(380tok) + 백엔드(480tok) 히스토리 없이 95tok으로 시작해 <strong>860 tokens 절약!</strong>',
+    a1:{ active:true, writing:false, tok:380,
+      msgs:[
+        ...D1_MSGS_base,
+        { role:'user', text:'버튼 컴포넌트 디자인 어떻게 할까?' },
+        { role:'assistant', text:'Primary: #2563EB, border-radius 8px.' },
+        { role:'tool', text:'→ write(decision.md): UI 결정 기록' }
+      ]
+    },
+    a2:{ active:true, writing:false, tok:480,
+      msgs:[
+        ...D2_MSGS_base,
+        { role:'tool', text:'← read(shared.md)' },
+        { role:'user', text:'API 구조 설계해줘.' },
+        { role:'assistant', text:'REST /api/v1, JWT.' },
+        { role:'tool', text:'→ write(decision.md): API 결정 기록' }
+      ]
+    },
+    a3:{ visible:true, active:true, writing:false, tok:620, tokSave:860,
+      msgs:[
+        { role:'system', text:'통합 테스트 전문가. decision.md만 주입.' },
+        { role:'tool', text:'← read(decision.md)' },
+        { role:'user', text:'통합 테스트 작성해줘.' },
+        { role:'assistant', text:'<strong>통합 테스트 완성!</strong> UI 색상(#2563EB) + API(/api/v1 + JWT) 모두 검증. decision.md만으로 충분했습니다 🎉' }
+      ]
+    },
+    shared:[
+      '# shared.md',
+      '## [Design ✅] Primary #2563EB, radius 8px',
+      '## [Backend ✅] REST /api/v1, JWT'
+    ],
+    decision:[
+      '# decision.md — 확정 결정사항',
+      '',
+      '## [UI/디자인]',
+      '- Primary Color: #2563EB (Blue)',
+      '- Button border-radius: 8px',
+      '- Font: Pretendard 16px/Bold',
+      '',
+      '## [API/백엔드]',
+      '- Pattern: REST /api/v1/{resource}',
+      '- Auth: JWT Bearer Token',
+      '- Response Format: JSON'
+    ]
+  }
+];
+
+function renderMaAgent(agent, msgsId, dotId, writingId, tokBarId, tokValId, tokSaveId) {
+  const msgs = document.getElementById(msgsId);
+  const dot  = document.getElementById(dotId);
+  const wrt  = document.getElementById(writingId);
+  const tokBar = document.getElementById(tokBarId);
+  if (dot) dot.classList.toggle('active', !!agent.active);
+  if (wrt) wrt.style.display = agent.writing ? '' : 'none';
+  if (tokBar) tokBar.style.display = agent.active ? '' : 'none';
+  if (tokValId) {
+    const el = document.getElementById(tokValId);
+    if (el) el.textContent = (agent.tok || 0) + ' tokens';
+  }
+  if (tokSaveId) {
+    const el = document.getElementById(tokSaveId);
+    if (el) el.textContent = agent.tokSave ? agent.tokSave + ' tokens' : '-';
+  }
+  if (!agent.active) {
+    msgs.innerHTML = '<div class="ma-offline">⚫ 대기 중… 터미널을 열어주세요</div>';
+    return;
+  }
+  if (!agent.msgs || agent.msgs.length === 0) {
+    msgs.innerHTML = '<div class="ma-empty">메시지 없음</div>';
+    return;
+  }
+  msgs.innerHTML = agent.msgs.map(m => {
+    const cls = `ma-msg ma-msg-${m.role}`;
+    const label = {system:'SYSTEM', user:'USER', assistant:'ASST', tool:'TOOL'}[m.role] || m.role.toUpperCase();
+    return `<div class="${cls}"><span class="ma-role">[${label}]</span>${m.text}</div>`;
+  }).join('');
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function renderMaFile(lines, boxId, isDecision) {
+  const el = document.getElementById(boxId);
+  if (!lines || lines.length === 0) {
+    el.innerHTML = '<div class="ma-file-empty">📄 비어있음</div>';
+    return;
+  }
+  el.innerHTML = lines.map(line => {
+    if (line === '') return '<div style="height:4px"></div>';
+    const cls = line.startsWith('# ')  ? 'ma-file-h1'  :
+                line.startsWith('## ') ? (isDecision ? 'ma-file-h2d' : 'ma-file-h2') :
+                line.startsWith('- ')  ? (isDecision ? 'ma-file-bulletd' : 'ma-file-bullet') : 'ma-file-line';
+    return `<div class="ma-file-line ${cls}">${line}</div>`;
+  }).join('');
+}
+
+function renderMulti() {
+  const s = multiSteps[multiStep];
+
+  // Narration & step counter
+  document.getElementById('ma-narration').innerHTML = s.narration;
+  document.getElementById('ma-step-info').textContent = `${multiStep} / ${multiSteps.length - 1}`;
+
+  // Agent 1
+  renderMaAgent(s.a1, 'ma-msgs1', 'ma-dot1', 'ma-writing1', 'ma-tokens1', 'ma-tok1-val', null);
+  // Agent 2
+  renderMaAgent(s.a2, 'ma-msgs2', 'ma-dot2', 'ma-writing2', 'ma-tokens2', 'ma-tok2-val', null);
+
+  // Files
+  renderMaFile(s.shared,   'ma-shared-box',   false);
+  renderMaFile(s.decision, 'ma-decision-box',  true);
+
+  // Agent 3
+  const wrap = document.getElementById('ma-agent3-wrap');
+  wrap.classList.toggle('visible', !!s.a3.visible);
+  if (s.a3.visible) {
+    renderMaAgent(s.a3, 'ma-msgs3', 'ma-dot3', 'ma-writing3', 'ma-tokens3', 'ma-tok3-val', 'ma-tok3-save');
+  }
+
+  // Buttons
+  document.getElementById('ma-prev-btn').disabled = multiStep === 0;
+  document.getElementById('ma-step-btn').disabled = multiStep >= multiSteps.length - 1;
+}
+
+function multiReset() {
+  stopAuto();
+  multiStep = 0;
+  renderMulti();
+}
+
+// Multi-agent controls
+document.getElementById('ma-step-btn').addEventListener('click', () => {
+  if (multiStep < multiSteps.length - 1) { multiStep++; renderMulti(); }
+});
+document.getElementById('ma-prev-btn').addEventListener('click', () => {
+  if (multiStep > 0) { multiStep--; renderMulti(); }
+});
+document.getElementById('ma-reset-btn').addEventListener('click', multiReset);
+document.getElementById('ma-auto-btn').addEventListener('click', () => {
+  if (autoTimer) stopAuto(); else startAuto();
+});
+
+// ============== INIT ==============
+render();
+</script>
+</body>
+</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
