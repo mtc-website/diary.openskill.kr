@@ -158,6 +158,53 @@
       "categories": [
         "설치"
       ]
+    },
+    {
+      "postId": 14,
+      "id": "memory-guide",
+      "title": "메모리 관리 가이드: Java · JavaScript · Dart",
+      "date": "2026-05-15",
+      "categories": [
+        "skill"
+      ],
+      "summary": "같은 Counter 예제로 세 언어의 메모리 모델 차이를 비교한 정리 노트",
+      "filename": "posts/14/memory-guide.html",
+      "tags": [
+        "목차",
+        "1 메모리 3대 영역 기초",
+        "Stack 스택",
+        "Heap 힙",
+        "Static  Method Area 정적 영역",
+        "2 세 언어 한눈에 비교",
+        "3 Java 메모리 모델",
+        "특징 한 줄"
+      ],
+      "engine": "md",
+      "themeInjected": true,
+      "sourcePath": "_src/memory-guide.md",
+      "originalFilename": "memory-guide.md"
+    },
+    {
+      "postId": 15,
+      "id": "memory-simulator",
+      "title": "메모리 시뮬레이터 — Java / JavaScript / Dart (확장판)",
+      "date": "2026-05-15",
+      "categories": [
+        "skill"
+      ],
+      "summary": "메모리 시뮬레이터 — Java / JavaScript / Dart (확장판)",
+      "filename": "posts/15/memory-simulator.html",
+      "tags": [
+        "📌 Static 영역 클래스/코드 · 앱 수명",
+        "📚 Stack 함수 호출 프레임",
+        "🌳 Heap 객체 · GC",
+        "🖥️ LLM Server stateless · 매 요청",
+        "📝 decisions.md 디스크 파일 · /clear"
+      ],
+      "engine": "html",
+      "themeInjected": true,
+      "sourcePath": "_src/memory-simulator.html",
+      "originalFilename": "memory-simulator.html"
     }
   ]
 }
