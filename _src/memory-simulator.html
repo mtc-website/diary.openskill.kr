@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>메모리 시뮬레이터 — Java / JavaScript / Dart (확장판)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Pretendard', sans-serif;
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 20px;
+    min-height: 100vh;
+  }
+  .container { max-width: 1500px; margin: 0 auto; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .subtitle { color: #64748b; margin-bottom: 18px; font-size: 13px; line-height: 1.5; }
+  .tabs {
+    display: flex; gap: 2px;
+    border-bottom: 2px solid #cbd5e1;
+    margin-bottom: 16px;
+  }
+  .tab {
+    padding: 10px 22px; background: transparent;
+    border: none; cursor: pointer; font-size: 14px; font-weight: 600;
+    color: #64748b; border-bottom: 3px solid transparent;
+    margin-bottom: -2px; transition: all 0.15s;
+  }
+  .tab:hover { color: #1e293b; background: #e2e8f0; border-radius: 6px 6px 0 0; }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .main { display: grid; grid-template-columns: 1fr 1.15fr; gap: 16px; }
+  .panel {
+    background: white; border-radius: 10px; padding: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .code-panel pre {
+    font-family: 'Menlo', 'Consolas', monospace;
+    font-size: 12px; line-height: 1.55;
+    background: #1e293b; color: #e2e8f0;
+    padding: 12px 4px; border-radius: 6px;
+    overflow-x: auto; max-height: 420px; overflow-y: auto;
+  }
+  .code-line {
+    display: block; padding: 0 10px; border-radius: 3px;
+    transition: background 0.15s; white-space: pre;
+  }
+  .code-line.active {
+    background: #fbbf24; color: #1e293b; font-weight: 600;
+  }
+  .ln {
+    color: #64748b; margin-right: 10px;
+    display: inline-block; width: 22px; text-align: right;
+    user-select: none;
+  }
+  .code-line.active .ln { color: #1e293b; }
+  .controls { display: flex; gap: 6px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .controls button {
+    padding: 7px 14px; background: #2563eb; color: white;
+    border: none; border-radius: 5px; cursor: pointer;
+    font-size: 13px; font-weight: 500;
+  }
+  .controls button:hover:not(:disabled) { background: #1d4ed8; }
+  .controls button.secondary { background: #64748b; }
+  .controls button.secondary:hover { background: #475569; }
+  .controls button:disabled { background: #cbd5e1; cursor: not-allowed; }
+  .step-info {
+    margin-left: auto; color: #475569; font-size: 13px; font-weight: 500;
+  }
+  .narration {
+    margin-top: 10px; padding: 11px 13px;
+    background: #eff6ff; border-left: 4px solid #2563eb;
+    border-radius: 4px; font-size: 13px; line-height: 1.6;
+    min-height: 90px;
+  }
+  .narration strong { color: #1d4ed8; }
+
+  .memory-panel { display: flex; flex-direction: column; gap: 10px; }
+  .region {
+    background: white; border-radius: 10px; padding: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .region h3 {
+    font-size: 13px; margin-bottom: 9px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .region-tag {
+    font-size: 10.5px; padding: 2px 8px; border-radius: 10px; font-weight: 500;
+  }
+  .static-region { border-top: 4px solid #a78bfa; min-height: 90px; }
+  .static-region .region-tag { background: #ede9fe; color: #6d28d9; }
+  .stack-heap { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stack-region { border-top: 4px solid #60a5fa; min-height: 280px; }
+  .stack-region .region-tag { background: #dbeafe; color: #1d4ed8; }
+  .heap-region { border-top: 4px solid #34d399; min-height: 280px; }
+  .heap-region .region-tag { background: #d1fae5; color: #047857; }
+
+  .frame {
+    background: #eff6ff; border: 1px solid #93c5fd;
+    border-radius: 5px; padding: 7px 9px; margin-bottom: 6px;
+    font-family: 'Menlo', monospace; font-size: 11.5px;
+    animation: slideIn 0.25s ease-out;
+  }
+  .frame-name {
+    font-weight: 700; color: #1d4ed8;
+    margin-bottom: 3px; font-size: 10.5px;
+    letter-spacing: 0.3px;
+  }
+  .frame-var { padding-left: 6px; color: #1e293b; line-height: 1.55; }
+  .var-name { color: #7c3aed; font-weight: 600; }
+  .var-ref { color: #047857; font-weight: 700; }
+
+  .heap-obj {
+    background: #ecfdf5; border: 1px solid #6ee7b7;
+    border-radius: 5px; padding: 7px 9px; margin-bottom: 6px;
+    font-family: 'Menlo', monospace; font-size: 11.5px;
+    animation: slideIn 0.25s ease-out;
+    transition: all 0.3s;
+  }
+  .heap-obj.fn-obj {
+    background: #fef3c7; border-color: #fcd34d;
+  }
+  .heap-obj.fn-obj .obj-id { color: #92400e; }
+  .heap-obj.chat-msg { padding: 8px 10px; }
+  .heap-obj.chat-user {
+    background: #dbeafe; border-color: #93c5fd;
+  }
+  .heap-obj.chat-user .obj-id { color: #1e40af; }
+  .heap-obj.chat-assistant {
+    background: #fef9c3; border-color: #fde047;
+  }
+  .heap-obj.chat-assistant .obj-id { color: #854d0e; }
+  .heap-obj.chat-system {
+    background: #ede9fe; border-color: #c4b5fd;
+  }
+  .heap-obj.chat-system .obj-id { color: #6d28d9; }
+  .chat-content {
+    padding: 4px 6px 0; line-height: 1.5;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 12px; color: #1e293b; white-space: pre-wrap;
+  }
+  #heap-items { max-height: 460px; overflow-y: auto; padding-right: 4px; }
+  .context-meter {
+    background: linear-gradient(to right, #fef3c7, #fde047);
+    border-radius: 5px; padding: 6px 10px; margin-bottom: 8px;
+    font-family: 'Menlo', monospace; font-size: 11px;
+    color: #78350f; font-weight: 600;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .gc-banner {
+    background: #fee2e2; border: 2px dashed #fca5a5;
+    color: #991b1b; padding: 10px; border-radius: 6px;
+    text-align: center; font-weight: 700; font-size: 12px;
+    margin-bottom: 8px; animation: slideIn 0.3s;
+  }
+
+  /* LLM extra panels */
+  .llm-extra {
+    display: none;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-top: 16px;
+  }
+  body.lang-llm .llm-extra { display: grid; }
+  .server-panel { border-top: 4px solid #f97316; }
+  .server-panel .region-tag { background: #fed7aa; color: #c2410c; }
+  .decisions-panel { border-top: 4px solid #10b981; }
+  .decisions-panel .region-tag { background: #d1fae5; color: #047857; }
+  .server-state-box {
+    background: #1e293b; color: #e2e8f0;
+    border-radius: 6px; padding: 12px;
+    font-family: 'Menlo', monospace; font-size: 12px;
+    line-height: 1.7;
+    min-height: 240px;
+  }
+  .server-state-name {
+    font-size: 14px; font-weight: 700;
+    color: #fbbf24; margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #475569;
+  }
+  .server-detail-line {
+    color: #cbd5e1; padding: 2px 0;
+  }
+  .server-detail-line .label {
+    color: #94a3b8; margin-right: 6px;
+  }
+  .server-detail-line .value {
+    color: #f1f5f9;
+  }
+  .server-stateless-note {
+    margin-top: 10px; padding: 7px 10px;
+    background: #422006; border-left: 3px solid #fbbf24;
+    border-radius: 3px; font-size: 11px;
+    color: #fde68a; line-height: 1.5;
+  }
+  .server-attention-viz {
+    margin-top: 8px; padding: 8px;
+    background: #0f172a; border-radius: 4px;
+    text-align: center; font-size: 10px;
+    color: #94a3b8;
+  }
+  .md-viewer {
+    background: #fefce8; border: 1px solid #facc15;
+    border-radius: 6px; padding: 12px 14px;
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 12.5px; line-height: 1.6;
+    min-height: 240px; max-height: 320px; overflow-y: auto;
+  }
+  .md-h1 {
+    font-size: 14px; font-weight: 700; color: #0f172a;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #facc15;
+    margin-bottom: 8px;
+  }
+  .md-h2 {
+    font-size: 13px; font-weight: 600; color: #92400e;
+    margin-top: 10px; margin-bottom: 4px;
+  }
+  .md-bullet {
+    padding-left: 8px; color: #334155;
+  }
+  .md-new {
+    background: #fef08a; padding: 2px 6px;
+    border-radius: 3px; animation: slideIn 0.35s;
+  }
+  .md-blank { height: 4px; }
+  .md-empty {
+    color: #94a3b8; font-style: italic;
+    text-align: center; padding: 30px;
+  }
+  .md-preserved {
+    background: #ecfdf5; border: 1px dashed #34d399;
+    color: #065f46; padding: 6px 10px; border-radius: 4px;
+    font-size: 11px; margin-bottom: 8px;
+    text-align: center; font-weight: 600;
+  }
+  .heap-obj.unreachable {
+    opacity: 0.55; border-style: dashed;
+    background: #fef2f2; border-color: #fca5a5;
+  }
+  .heap-obj.unreachable .obj-id { color: #b91c1c; }
+  .gc-warn {
+    color: #dc2626; font-size: 9.5px; font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .obj-id {
+    font-weight: 700; color: #047857;
+    margin-bottom: 3px; font-size: 10.5px;
+  }
+  .obj-field { padding-left: 6px; line-height: 1.55; }
+
+  .static-item {
+    background: #f5f3ff; border: 1px solid #c4b5fd;
+    border-radius: 5px; padding: 6px 9px; margin-bottom: 5px;
+    font-family: 'Menlo', monospace; font-size: 11.5px;
+    color: #5b21b6; font-weight: 600;
+    animation: slideIn 0.25s ease-out;
+  }
+  .static-item.fn-item {
+    background: #fffbeb; border-color: #fcd34d; color: #92400e;
+  }
+  .empty {
+    color: #94a3b8; font-style: italic;
+    font-size: 12px; text-align: center; padding: 18px;
+  }
+  .lang-note {
+    background: #fef3c7; border-left: 3px solid #f59e0b;
+    padding: 9px 11px; border-radius: 3px;
+    font-size: 12px; line-height: 1.55; color: #78350f;
+    margin-bottom: 8px;
+  }
+  .lang-note strong { color: #92400e; }
+  .narration code, .lang-note code {
+    background: rgba(0,0,0,0.08); padding: 1px 5px;
+    border-radius: 3px; font-family: 'Menlo', monospace;
+    font-size: 0.9em; color: #1e293b;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-3px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .legend {
+    display: flex; gap: 14px; margin-top: 10px;
+    flex-wrap: wrap; font-size: 11px; color: #475569;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+  @media (max-width: 980px) {
+    .main { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🧠 메모리 시뮬레이터 (확장판)</h1>
+  <p class="subtitle">Counter 클래스 + <strong>클래스 밖 변수(multiplier)</strong> + <strong>1급객체 함수(boost)</strong>를 세 언어로 구현하고 메모리 변화를 추적합니다. 네 번째 탭은 <strong>LLM의 context</strong>가 "GC 없는 heap"처럼 동작하는 모습을 시각화해요.</p>
+
+  <div class="tabs">
+    <button class="tab active" data-lang="java">☕ Java</button>
+    <button class="tab" data-lang="javascript">📜 JavaScript</button>
+    <button class="tab" data-lang="dart">🎯 Dart</button>
+    <button class="tab" data-lang="llm">🤖 LLM Context</button>
+  </div>
+
+  <div class="main">
+    <div class="panel code-panel">
+      <pre id="code"></pre>
+      <div class="controls">
+        <button id="reset-btn" class="secondary">⟲ 리셋</button>
+        <button id="prev-btn" class="secondary">◀ 이전</button>
+        <button id="step-btn">▶ 다음</button>
+        <button id="auto-btn">▶▶ 자동재생</button>
+        <span class="step-info" id="step-info">0 / 0</span>
+      </div>
+      <div class="narration" id="narration">▶ 다음 버튼(또는 스페이스바)을 눌러 시작하세요. 키보드: ←→ 이동, R 리셋, 1·2·3 탭 전환.</div>
+      <div class="legend">
+        <div class="legend-item"><span class="legend-dot" style="background:#a78bfa"></span>Static</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#60a5fa"></span>Stack</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#34d399"></span>Heap (객체)</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fcd34d"></span>Heap (함수)</div>
+        <div class="legend-item"><span class="legend-dot" style="background:#fca5a5"></span>GC 대상</div>
+      </div>
+    </div>
+
+    <div class="memory-panel">
+      <div class="region static-region">
+        <h3><span id="static-title">📌 Static 영역</span> <span class="region-tag" id="static-tag">클래스/코드 · 앱 수명</span></h3>
+        <div id="static-items"></div>
+      </div>
+      <div class="stack-heap">
+        <div class="region stack-region">
+          <h3><span id="stack-title">📚 Stack</span> <span class="region-tag" id="stack-tag">함수 호출 프레임</span></h3>
+          <div id="stack-items"></div>
+        </div>
+        <div class="region heap-region">
+          <h3><span id="heap-title">🌳 Heap</span> <span class="region-tag" id="heap-tag">객체 · GC</span></h3>
+          <div id="heap-items"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="llm-extra" id="llm-extra">
+    <div class="panel server-panel">
+      <h3>🖥️ LLM Server <span class="region-tag">stateless · 매 요청마다 새로 시작</span></h3>
+      <div class="server-state-box" id="server-state">대기중</div>
+    </div>
+    <div class="panel decisions-panel">
+      <h3>📝 decisions.md <span class="region-tag">디스크 파일 · /clear와 무관하게 영구</span></h3>
+      <div class="md-viewer" id="decisions-content"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============== DATA ==============
+const examples = {
+  java: {
+    code: `import java.util.function.BiConsumer;
+
+class Counter {
+    static int totalCount = 0;
+    int value = 0;
+
+    void increment(int amount) {
+        int oldValue = value;
+        value = oldValue + amount;
+        totalCount++;
+    }
+}
+
+public class App {
+    static int multiplier = 2;
+
+    static void boost(Counter c, int amount) {
+        c.increment(amount * multiplier);
+    }
+
+    public static void main(String[] args) {
+        Counter c1 = new Counter();
+        BiConsumer<Counter, Integer> action = App::boost;
+        action.accept(c1, 5);
+    }
+}`,
+    staticNote: "💡 <strong>Java는 클래스 밖에 변수/함수를 둘 수 없어요.</strong> top-level처럼 쓰려면 static 필드/메서드로 클래스 안에 넣어야 합니다. 함수를 1급 객체처럼 다루려면 functional interface(BiConsumer 등)로 감싸야 해요.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        narration: "프로그램 시작 전. ▶ 다음 버튼을 눌러 진행하세요." },
+      { line: 4,
+        static: [{k:"Counter.totalCount", v:"0"}, {k:"Counter.increment", v:"<bytecode>", fn:true}],
+        stack: [], heap: [],
+        narration: "JVM이 <strong>Counter 클래스</strong>를 Method Area에 로딩. static 필드 totalCount=0 즉시 초기화, increment 메서드 바이트코드도 같은 영역에 등록돼요." },
+      { line: 15,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [], heap: [],
+        narration: "<strong>App 클래스</strong> 로딩. 클래스 밖 변수처럼 쓰고 싶은 <strong>multiplier는 App.static 필드</strong>로, 1급객체로 쓰고 싶은 <strong>boost는 App.static 메서드</strong>로 등록돼요. Java의 한계 - 진짜 top-level은 못 만듭니다." },
+      { line: 21,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [{name:"main", vars:[{n:"args", v:"String[0]"}]}],
+        heap: [],
+        narration: "main() 호출. Stack에 main 프레임 push." },
+      { line: 22,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [{name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}]}],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "new Counter()로 객체 #1이 Heap에 생성. c1은 #1 참조 저장." },
+      { line: 23,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [{name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]}],
+        heap: [
+          {id:1, type:"Counter", fields:{value:0}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "★Java의 1급객체 함수★ <strong>App::boost</strong> method reference로 함수를 객체처럼 다루려면 <strong>functional interface</strong>(BiConsumer)로 감싸야 합니다. JVM이 synthetic lambda 객체 #2를 <strong>Heap에</strong> 만들고, 이 객체의 accept()가 내부적으로 App.boost를 호출해요." },
+      { line: 24,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [
+          {id:1, type:"Counter", fields:{value:0}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "action.accept(c1, 5) 호출. 내부적으로 #2의 accept이 App.boost(c1, 5)를 호출 → boost 프레임 push. c=#1, amount=5." },
+      { line: 18,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}]}
+        ],
+        heap: [
+          {id:1, type:"Counter", fields:{value:0}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "boost 안에서 <strong>App.multiplier(static에서 2)</strong> 읽어 amount*multiplier=10 계산. c.increment(10) 호출 → increment 프레임 push. this=#1, amount=10." },
+      { line: 8,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:1, type:"Counter", fields:{value:0}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "int oldValue = value(0)." },
+      { line: 9,
+        static: [
+          {k:"Counter.totalCount", v:"0"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:1, type:"Counter", fields:{value:10}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "Heap의 #1.value = 10으로 갱신." },
+      { line: 10,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:1, type:"Counter", fields:{value:10}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "Counter.totalCount++가 1로." },
+      { line: 11,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]},
+          {name:"boost", vars:[{n:"c", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [
+          {id:1, type:"Counter", fields:{value:10}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "increment 프레임 pop." },
+      { line: 19,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [{name:"main", vars:[{n:"args", v:"String[0]"}, {n:"c1", ref:1}, {n:"action", ref:2}]}],
+        heap: [
+          {id:1, type:"Counter", fields:{value:10}},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true}
+        ],
+        narration: "boost 프레임 pop. accept 호출도 반환." },
+      { line: 25,
+        static: [
+          {k:"Counter.totalCount", v:"1"},
+          {k:"Counter.increment", v:"<bytecode>", fn:true},
+          {k:"App.multiplier", v:"2"},
+          {k:"App.boost", v:"<bytecode>", fn:true}
+        ],
+        stack: [],
+        heap: [
+          {id:1, type:"Counter", fields:{value:10}, unreachable:true},
+          {id:2, type:"BiConsumer (lambda)", fields:{target:"→ App.boost"}, isFn:true, unreachable:true}
+        ],
+        narration: "main 종료. Heap의 #1(Counter)과 #2(lambda)가 unreachable → GC 대상. <strong>Static의 multiplier, totalCount, 메서드 바이트코드는 클래스 unload 전까지 유지</strong>." }
+    ]
+  },
+
+  javascript: {
+    code: `class Counter {
+    static totalCount = 0;
+    constructor() {
+        this.value = 0;
+    }
+    increment(amount) {
+        let oldValue = this.value;
+        this.value = oldValue + amount;
+        Counter.totalCount++;
+    }
+}
+
+let multiplier = 2;
+
+function boost(counter, amount) {
+    counter.increment(amount * multiplier);
+}
+
+const c1 = new Counter();
+const action = boost;
+action(c1, 5);`,
+    staticNote: "⚠️ <strong>키워드 ≠ 메모리 영역!</strong> JS에도 <code>static</code> 키워드는 있어요(ES2022+). 하지만 자바와 의미가 달라요 — 자바의 <code>static</code>은 <strong>'Method Area에 저장'</strong>을 뜻하지만, <strong>JS의 <code>static</code>은 그저 '이 프로퍼티는 인스턴스가 아닌 클래스 객체 자체에 속함'</strong>이라는 뜻일 뿐. 결과적으로 <strong>모든 게 Heap에 있음</strong>. 그래서 이 Static 패널은 끝까지 비어있어요. 오른쪽 Heap의 <code>Counter (class)</code> 객체 안에 <code>totalCount</code>가 프로퍼티로 매달려 있는 걸 확인하세요.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        narration: "프로그램 시작 전. V8 엔진이 스크립트를 파싱할 준비." },
+      { line: 1, static: [],
+        stack: [{name:"global", vars:[]}], heap: [],
+        narration: "스크립트 실행 시작. <strong>전역 실행 컨텍스트</strong>(global EC)가 Stack에 생성됨." },
+      { line: 2, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}]}],
+        heap: [{id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{ constructor, increment }"}, isFn:true}],
+        narration: "<strong>class Counter</strong> 평가. 클래스 자체가 함수 객체로서 <strong>Heap</strong>에 생성됨. ★핵심★ 코드에 <code>static totalCount = 0</code>이라고 썼어도 별도 메모리 영역에 안 가요 — <strong>JS의 <code>static</code>은 그저 '이 프로퍼티는 클래스 객체 자체에 속함'</strong>이라는 뜻일 뿐. 그래서 #0 Counter 객체의 일반 프로퍼티로 매달려요. 자바와 같은 키워드지만 메모리 의미는 완전히 달라요." },
+      { line: 13, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}]}],
+        heap: [{id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true}],
+        narration: "★JS의 진짜 top-level★ <strong>let multiplier = 2</strong>가 global 스코프에 직접 저장됩니다. 클래스로 감쌀 필요 없어요. (정확히는 module/script 스코프지만 개념상 global)" },
+      { line: 15, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}]}],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true}
+        ],
+        narration: "★1급객체 함수★ <strong>function boost</strong> 선언으로 함수 객체 #1이 <strong>Heap</strong>에 생성. 함수도 객체라 name, length, prototype 등 프로퍼티를 가져요. global의 boost 변수가 #1을 가리킴." },
+      { line: 19, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}]}],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:0}}
+        ],
+        narration: "new Counter()로 인스턴스 #2 생성." },
+      { line: 20, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]}],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:0}}
+        ],
+        narration: "★중요★ <strong>const action = boost</strong>는 함수를 복사하지 않아요. <strong>action과 boost 둘 다 같은 #1을 가리키는 참조</strong>일 뿐. Java처럼 wrapper 객체를 만들 필요가 없죠." },
+      { line: 21, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]},
+          {name:"boost", vars:[{n:"counter", ref:2}, {n:"amount", v:"5"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:0}}
+        ],
+        narration: "action(c1, 5) = boost(c1, 5). 같은 #1 함수 객체를 실행. boost 실행 컨텍스트 push: counter=#2, amount=5." },
+      { line: 16, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]},
+          {name:"boost", vars:[{n:"counter", ref:2}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:2}, {n:"amount", v:"10"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:0}}
+        ],
+        narration: "boost는 자기 스코프에 multiplier가 없으니 <strong>[[Scope]] 체인</strong>을 따라 global에서 multiplier(2)를 찾아옵니다. 5*2=10 계산 후 counter.increment(10) 호출 → increment 프레임 push." },
+      { line: 7, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]},
+          {name:"boost", vars:[{n:"counter", ref:2}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:2}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:0}}
+        ],
+        narration: "let oldValue = this.value(0)." },
+      { line: 8, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]},
+          {name:"boost", vars:[{n:"counter", ref:2}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:2}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:0, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:10}}
+        ],
+        narration: "Heap의 #2.value = 10." },
+      { line: 9, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]},
+          {name:"boost", vars:[{n:"counter", ref:2}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:2}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:1, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:10}}
+        ],
+        narration: "Counter.totalCount++ - 실제론 <strong>Heap의 Counter 클래스 객체(#0)의 totalCount 프로퍼티</strong>가 갱신됩니다." },
+      { line: 10, static: [],
+        stack: [
+          {name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]},
+          {name:"boost", vars:[{n:"counter", ref:2}, {n:"amount", v:"5"}]}
+        ],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:1, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:10}}
+        ],
+        narration: "increment 컨텍스트 pop." },
+      { line: 17, static: [],
+        stack: [{name:"global", vars:[{n:"Counter", ref:0}, {n:"multiplier", v:"2"}, {n:"boost", ref:1}, {n:"c1", ref:2}, {n:"action", ref:1}]}],
+        heap: [
+          {id:0, type:"Counter (class)", fields:{totalCount:1, prototype:"{...}"}, isFn:true},
+          {id:1, type:"Function", fields:{name:"boost", params:"(counter, amount)", "[[Scope]]":"→ global"}, isFn:true},
+          {id:2, type:"Counter", fields:{value:10}}
+        ],
+        narration: "boost 컨텍스트 pop. 스크립트가 끝나도 global 스코프가 살아있어 모든 객체가 reachable. V8의 <strong>Mark-and-Sweep</strong> GC는 도달 불가능한 것만 정리해요." }
+    ]
+  },
+
+  dart: {
+    code: `class Counter {
+    static int totalCount = 0;
+    int value = 0;
+
+    void increment(int amount) {
+        int oldValue = value;
+        value = oldValue + amount;
+        totalCount++;
+    }
+}
+
+int multiplier = 2;
+
+void boost(Counter counter, int amount) {
+    counter.increment(amount * multiplier);
+}
+
+void main() {
+    var c1 = Counter();
+    Function action = boost;
+    action(c1, 5);
+}`,
+    staticNote: "💡 <strong>Dart는 top-level 변수/함수를 그대로 지원</strong>합니다 (Java보다 자유롭고, JS와 비슷). 차이점: <strong>모든 top-level과 static은 lazy 초기화</strong> - 처음 접근될 때까지 메모리에 안 잡혀요.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        narration: "프로그램 시작 전. Dart VM이 isolate를 준비합니다(★각 isolate는 독립된 Heap★)." },
+      { line: 18,
+        static: [{k:"boost", v:"<top-level function>", fn:true}],
+        stack: [{name:"main", vars:[]}],
+        heap: [],
+        narration: "main() 호출. <strong>boost는 컴파일된 코드</strong>의 일부로 항상 접근 가능(코드 영역). 단 <strong>multiplier와 Counter.totalCount는 lazy</strong>여서 아직 초기화 안 됨!" },
+      { line: 19,
+        static: [{k:"boost", v:"<top-level function>", fn:true}],
+        stack: [{name:"main", vars:[{n:"c1", ref:1}]}],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "Counter() 호출(new 생략 가능). #1이 Heap에 생성. 인스턴스 필드 value는 즉시 초기화." },
+      { line: 20,
+        static: [{k:"boost", v:"<top-level function>", fn:true}],
+        stack: [{name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]}],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "★Dart 1급객체 함수★ <strong>Function action = boost</strong> - top-level 함수를 변수에 할당. Dart의 함수도 1급 객체라 바로 변수에 담아요. (Java처럼 BiConsumer 같은 wrapper interface 불필요! 다만 VM 내부에선 function tear-off로 closure가 만들어질 수 있음)" },
+      { line: 21,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "action(c1, 5) 호출 → boost 프레임 push. counter=#1, amount=5. (자바와 달리 lambda wrapper 없이 함수 자체가 호출됨)" },
+      { line: 15,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "★Lazy Init★ multiplier에 처음 접근하는 순간 <strong>2로 초기화</strong>되어 Static에 등장! amount*multiplier=10 계산 후 counter.increment(10) → 새 프레임 push." },
+      { line: 6,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:0}}],
+        narration: "int oldValue = value(0)." },
+      { line: 7,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "#1.value = 10." },
+      { line: 8,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]},
+          {name:"increment", vars:[{n:"this", ref:1}, {n:"amount", v:"10"}, {n:"oldValue", v:"0"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "★Lazy Init★ Counter.totalCount에 처음 접근하며 0으로 초기화 후 1로 증가. (multiplier가 step 6에서 먼저 lazy-init된 것과 같은 메커니즘)" },
+      { line: 9,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [
+          {name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]},
+          {name:"boost", vars:[{n:"counter", ref:1}, {n:"amount", v:"5"}]}
+        ],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "increment 프레임 pop." },
+      { line: 16,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [{name:"main", vars:[{n:"c1", ref:1}, {n:"action", v:"→ boost"}]}],
+        heap: [{id:1, type:"Counter", fields:{value:10}}],
+        narration: "boost 프레임 pop." },
+      { line: 22,
+        static: [
+          {k:"boost", v:"<top-level function>", fn:true},
+          {k:"multiplier", v:"2"},
+          {k:"Counter.totalCount", v:"1"}
+        ],
+        stack: [],
+        heap: [{id:1, type:"Counter", fields:{value:10}, unreachable:true}],
+        narration: "main 종료. #1이 unreachable → Dart의 generational GC 대상. <strong>Static의 multiplier(2), totalCount(1), boost는 isolate가 종료될 때까지 유지</strong>. 다른 isolate가 있어도 이 메모리는 공유되지 않아요." }
+    ]
+  },
+
+  llm: {
+    panels: {
+      static: "📌 System / 영구 설정",
+      staticTag: "세션 내내 유지",
+      stack: "📚 현재 턴 입력",
+      stackTag: "transient — 곧 context로",
+      heap: "🌳 Context (대화 누적)",
+      heapTag: "★GC 없음★ 무한 누적"
+    },
+    code: `// === LLM API 클라이언트 (의사 코드) ===
+session.start()
+system_prompt = "당신은 코딩 도우미"
+decisions = openFile("decisions.md")  // 디스크 파일
+
+// === 1턴 ===
+user_msg = "Python 리스트 정렬법은?"
+context.push(user_msg)
+response = llm.chat(context)
+context.push(response)
+decisions.append("1턴: sorted() 사용")
+
+// === 2턴 ===
+user_msg = "역순으로는?"
+context.push(user_msg)
+response = llm.chat(context)
+context.push(response)
+decisions.append("2턴: reverse=True")
+
+// === 3턴 ===
+user_msg = "key 인자는?"
+context.push(user_msg)
+response = llm.chat(context)
+context.push(response)
+decisions.append("3턴: key=lambda")
+
+// ★LLM은 자체 메모리 없음 — stateless★
+// → context 전체를 매번 재전송
+// ★Attention★ 모든 토큰 참조 필요
+// ★GC 없음★ — 자동 정리 불가
+
+// === 수동 GC: /clear ===
+context.clear()
+// decisions.md는 디스크에 그대로!
+
+// === decisions.md → 요약 → 재주입 ===
+summary = decisions.read().compress()
+context.push(summary)
+// → 깨끗한 출발, 핵심만 유지`,
+    staticNote: "💡 <strong>위쪽 3패널(클라이언트 메모리) + 아래쪽 2패널(LLM 서버 · decisions.md)</strong>를 함께 보세요. LLM은 stateless라 매 요청마다 모두 잊고, context는 GC 없이 누적돼요. 그래서 <strong>decisions.md(디스크 파일)</strong>로 결정사항을 영구 저장해서 /clear 후 핵심만 재주입합니다.",
+    steps: [
+      { line: 0, static: [], stack: [], heap: [],
+        narration: "세션 시작 전. ▶ 다음 버튼으로 진행하세요." },
+      { line: 3,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [], heap: [],
+        narration: "세션 시작. system_prompt가 <strong>Static처럼 영구</strong> 자리잡음 (매 API 호출마다 자동 포함됨)." },
+      { line: 6,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [{name:"new_input", vars:[{n:"user_msg", v:"\"Python 리스트 정렬법은?\""}]}],
+        heap: [],
+        narration: "사용자가 1턴 메시지 입력. 아직 context에 들어가기 전 - Stack에 잠시 머무는 상태." },
+      { line: 7,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"}
+        ],
+        meter: {turn:1, msgs:1, tokens:15},
+        narration: "context.push로 메시지가 Context(heap)에 추가됨. 이제 GC 대상이 아니라 영구 보관." },
+      { line: 8,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [{name:"api.chat()", vars:[{n:"input", v:"전체 context 전송"}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"}
+        ],
+        meter: {turn:1, msgs:1, tokens:15},
+        narration: "llm.chat(context) 호출. <strong>context 전체</strong>를 API로 전송. LLM은 attention으로 모든 토큰을 한꺼번에 본 뒤 응답 생성." },
+      { line: 9,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"sorted() 함수나 .sort() 메서드를 쓰면 돼요."}
+        ],
+        meter: {turn:1, msgs:2, tokens:38},
+        narration: "응답도 context에 push. 1턴 완료. 메시지 2개 누적." },
+      { line: 13,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [{name:"new_input", vars:[{n:"user_msg", v:"\"역순으로는?\""}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"sorted() 함수나 .sort() 메서드를 쓰면 돼요."}
+        ],
+        meter: {turn:1, msgs:2, tokens:38},
+        narration: "2턴 사용자 메시지 입력. 이전 1턴 대화는 그대로 context에 살아있음." },
+      { line: 15,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [{name:"api.chat()", vars:[{n:"input", v:"전체 context 전송"}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"sorted() 함수나 .sort() 메서드를 쓰면 돼요."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"역순으로는?"}
+        ],
+        meter: {turn:2, msgs:3, tokens:46},
+        narration: "★핵심 원리★ <strong>LLM은 stateless</strong> — 자체 메모리가 없어요. 그래서 매 요청마다 <strong>이전 대화 전체 + 새 메시지를 모두 다시 전송</strong>해야 함. 이게 \"context는 클라이언트가 관리한다\"는 말의 의미." },
+      { line: 16,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"sorted() 함수나 .sort() 메서드를 쓰면 돼요."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"역순으로는?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"sorted(lst, reverse=True)로 하세요."}
+        ],
+        meter: {turn:2, msgs:4, tokens:72},
+        narration: "2턴 응답 추가. 메시지 4개 누적." },
+      { line: 20,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [{name:"api.chat()", vars:[{n:"input", v:"전체 context 전송"}]}],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"sorted() 함수나 .sort() 메서드를 쓰면 돼요."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"역순으로는?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"sorted(lst, reverse=True)로 하세요."},
+          {kind:"chat-user", role:"👤 User", turn:3, content:"key 인자는?"}
+        ],
+        meter: {turn:3, msgs:5, tokens:80},
+        narration: "3턴. 1턴+2턴+3턴 메시지 모두 다시 전송. context가 점점 무거워짐." },
+      { line: 21,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"sorted() 함수나 .sort() 메서드를 쓰면 돼요."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"역순으로는?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"sorted(lst, reverse=True)로 하세요."},
+          {kind:"chat-user", role:"👤 User", turn:3, content:"key 인자는?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:3, content:"key=lambda x: x.field 식으로 정렬 기준 함수 전달."}
+        ],
+        meter: {turn:3, msgs:6, tokens:120},
+        narration: "3턴 응답 추가. 메시지 6개, 약 120 토큰." },
+      { line: 25,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-user", role:"👤 User", turn:1, content:"Python 리스트 정렬법은?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:1, content:"sorted() 함수나 .sort() 메서드를 쓰면 돼요."},
+          {kind:"chat-user", role:"👤 User", turn:2, content:"역순으로는?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:2, content:"sorted(lst, reverse=True)로 하세요."},
+          {kind:"chat-user", role:"👤 User", turn:3, content:"key 인자는?"},
+          {kind:"chat-assistant", role:"🤖 Assistant", turn:3, content:"key=lambda x: x.field 식으로 정렬 기준 함수 전달."}
+        ],
+        meter: {turn:3, msgs:6, tokens:120},
+        narration: "★Attention 메커니즘★ 매 토큰 생성 시 <strong>이전 모든 토큰을 참조</strong>합니다. 일반 heap의 unreachable 객체와 달리 \"이 메시지는 더 이상 안 쓴다\"고 판단할 방법이 없어요. attention이 분산되고 비용이 O(n²)로 증가." },
+      { line: 28,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [],
+        heap: [],
+        gcBanner: "💥 context.clear() — 의도적 GC 발생!",
+        narration: "사용자가 <code>/clear</code> 명령으로 context를 통째로 비움. <strong>일반 GC와 결정적 차이</strong> — 자동 트리거가 아닌 <strong>수동 명령</strong>이 필요. 메시지 6개가 모두 사라짐." },
+      { line: 31,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [{name:"new_input", vars:[{n:"summary", v:"\"결정: sorted+reverse+key\""}]}],
+        heap: [],
+        narration: "<strong>★핵심 원칙★ 새로 채워넣어야 할 것은 '이전 대화 전체'가 아니라 '마지막 결정사항'</strong>. 6개 메시지의 본질을 1개 요약으로 압축. 이게 long-running task의 메모리 관리 전략." },
+      { line: 32,
+        static: [{k:"system_prompt", v:"\"당신은 코딩 도우미\""}],
+        stack: [],
+        heap: [
+          {kind:"chat-system", role:"📋 Summary", turn:1, content:"결정사항: sorted() 함수에 reverse=True와 key=lambda 옵션을 사용하기로 함"}
+        ],
+        meter: {turn:1, msgs:1, tokens:30},
+        narration: "압축된 결정사항만 context에 주입. 메시지 1개, ~30토큰으로 <strong>120토큰→30토큰</strong>으로 4배 가벼워진 깨끗한 출발점. 이전 6개 메시지의 \"의미\"는 보존하면서 비용은 줄어듦." }
+    ]
+  }
+};
+
+// ============== STATE ==============
+let currentLang = 'java';
+let currentStep = 0;
+let autoTimer = null;
+
+// ============== RENDER ==============
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function render() {
+  const ex = examples[currentLang];
+  const step = ex.steps[currentStep];
+
+  // Toggle LLM extra panels
+  document.body.classList.toggle('lang-llm', currentLang === 'llm');
+
+  // Panel titles (override per tab)
+  const p = ex.panels || {};
+  document.getElementById('static-title').textContent = p.static || '📌 Static 영역';
+  document.getElementById('static-tag').textContent = p.staticTag || '클래스/코드 · 앱 수명';
+  document.getElementById('stack-title').textContent = p.stack || '📚 Stack';
+  document.getElementById('stack-tag').textContent = p.stackTag || '함수 호출 프레임';
+  document.getElementById('heap-title').textContent = p.heap || '🌳 Heap';
+  document.getElementById('heap-tag').textContent = p.heapTag || '객체 · GC';
+
+  // Code rendering
+  const codeEl = document.getElementById('code');
+  const lines = ex.code.split('\n');
+  codeEl.innerHTML = lines.map((line, i) => {
+    const ln = i + 1;
+    const active = step.line === ln ? ' active' : '';
+    return `<span class="code-line${active}"><span class="ln">${ln}</span>${escapeHtml(line)}</span>`;
+  }).join('');
+
+  const activeLine = codeEl.querySelector('.code-line.active');
+  if (activeLine) activeLine.scrollIntoView({block:'nearest', behavior:'smooth'});
+
+  // Static
+  const staticEl = document.getElementById('static-items');
+  let staticHtml = '';
+  if (ex.staticNote) {
+    staticHtml += `<div class="lang-note">${ex.staticNote}</div>`;
+  }
+  if (step.static.length === 0) {
+    if (!ex.staticNote) staticHtml += '<div class="empty">비어있음</div>';
+  } else {
+    staticHtml += step.static.map(s => `<div class="static-item ${s.fn ? 'fn-item' : ''}">${escapeHtml(s.k)} = ${escapeHtml(s.v)}</div>`).join('');
+  }
+  staticEl.innerHTML = staticHtml;
+
+  // Stack
+  const stackEl = document.getElementById('stack-items');
+  if (step.stack.length === 0) {
+    stackEl.innerHTML = '<div class="empty">비어있음</div>';
+  } else {
+    stackEl.innerHTML = [...step.stack].reverse().map(f => `
+      <div class="frame">
+        <div class="frame-name">▼ ${escapeHtml(f.name)}()</div>
+        ${f.vars.map(v => {
+          const isRef = v.ref !== undefined;
+          const display = isRef ? `→ #${v.ref}` : String(v.v);
+          const isArrow = display.startsWith('→');
+          return `<div class="frame-var"><span class="var-name">${escapeHtml(v.n)}</span>: <span class="${isArrow ? 'var-ref' : ''}">${escapeHtml(display)}</span></div>`;
+        }).join('')}
+      </div>
+    `).join('');
+  }
+
+  // Heap
+  const heapEl = document.getElementById('heap-items');
+  let heapHtml = '';
+  if (step.meter) {
+    heapHtml += `<div class="context-meter"><span>📊 턴 ${step.meter.turn} · 메시지 ${step.meter.msgs}개</span><span>~${step.meter.tokens} 토큰</span></div>`;
+  }
+  if (step.gcBanner) {
+    heapHtml += `<div class="gc-banner">${step.gcBanner}</div>`;
+  }
+  if (step.heap.length === 0) {
+    heapHtml += '<div class="empty">비어있음</div>';
+  } else {
+    heapHtml += step.heap.map(o => {
+      if (o.kind && o.kind.startsWith('chat-')) {
+        return `<div class="heap-obj chat-msg ${o.kind} ${o.unreachable ? 'unreachable' : ''}">
+          <div class="obj-id">${escapeHtml(o.role || '')} · 턴 ${o.turn || '-'}</div>
+          <div class="chat-content">${escapeHtml(o.content)}</div>
+        </div>`;
+      }
+      return `<div class="heap-obj ${o.unreachable ? 'unreachable' : ''} ${o.isFn ? 'fn-obj' : ''}">
+        ${o.unreachable ? '<div class="gc-warn">⚠ GC 대상 (unreachable)</div>' : ''}
+        <div class="obj-id">#${o.id} · ${escapeHtml(o.type)}</div>
+        ${Object.entries(o.fields).map(([k,v]) => {
+          const sval = String(v);
+          const isArrow = sval.startsWith('→');
+          return `<div class="obj-field"><span class="var-name">${escapeHtml(k)}</span>: <span class="${isArrow ? 'var-ref' : ''}">${escapeHtml(sval)}</span></div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+  }
+  heapEl.innerHTML = heapHtml;
+
+  // LLM Server panel
+  if (currentLang === 'llm') {
+    const serverEl = document.getElementById('server-state');
+    const s = step.server || {state:"대기중", icon:"💤", details:[]};
+    let serverHtml = `<div class="server-state-name">${s.icon || '⚙️'} ${escapeHtml(s.state)}</div>`;
+    if (s.details && s.details.length) {
+      serverHtml += s.details.map(d => `<div class="server-detail-line"><span class="label">${escapeHtml(d.label)}</span><span class="value">${escapeHtml(d.value)}</span></div>`).join('');
+    }
+    if (s.attentionViz) {
+      serverHtml += `<div class="server-attention-viz">${s.attentionViz}</div>`;
+    }
+    if (s.statelessNote) {
+      serverHtml += `<div class="server-stateless-note">${s.statelessNote}</div>`;
+    }
+    serverEl.innerHTML = serverHtml;
+
+    // decisions.md
+    const decEl = document.getElementById('decisions-content');
+    const decs = step.decisions || [];
+    let decHtml = '';
+    if (step.decPreserved) {
+      decHtml += `<div class="md-preserved">✅ /clear와 무관하게 보존됨</div>`;
+    }
+    if (decs.length === 0) {
+      decHtml += '<div class="md-empty">decisions.md 파일 없음 (아직 안 만듦)</div>';
+    } else {
+      decHtml += decs.map((line, i) => {
+        const newFlag = step.decNew && step.decNew.includes(i) ? 'md-new' : '';
+        if (line.startsWith('# ')) return `<div class="md-h1 ${newFlag}">${escapeHtml(line)}</div>`;
+        if (line.startsWith('## ')) return `<div class="md-h2 ${newFlag}">${escapeHtml(line)}</div>`;
+        if (line.startsWith('- ')) return `<div class="md-bullet ${newFlag}">${escapeHtml(line)}</div>`;
+        if (line === '') return `<div class="md-blank"></div>`;
+        return `<div class="${newFlag}">${escapeHtml(line)}</div>`;
+      }).join('');
+    }
+    decEl.innerHTML = decHtml;
+  }
+
+  // Narration
+  document.getElementById('narration').innerHTML = step.narration;
+
+  // Step info
+  document.getElementById('step-info').textContent = `단계 ${currentStep} / ${ex.steps.length - 1}`;
+
+  // Buttons
+  document.getElementById('step-btn').disabled = currentStep >= ex.steps.length - 1;
+  document.getElementById('prev-btn').disabled = currentStep <= 0;
+}
+
+function step() {
+  const ex = examples[currentLang];
+  if (currentStep < ex.steps.length - 1) {
+    currentStep++;
+    render();
+  } else {
+    stopAuto();
+  }
+}
+
+function prev() {
+  if (currentStep > 0) {
+    currentStep--;
+    render();
+  }
+}
+
+function reset() {
+  currentStep = 0;
+  stopAuto();
+  render();
+}
+
+function startAuto() {
+  if (autoTimer) return;
+  document.getElementById('auto-btn').textContent = '⏸ 일시정지';
+  autoTimer = setInterval(() => {
+    const ex = examples[currentLang];
+    if (currentStep >= ex.steps.length - 1) {
+      stopAuto();
+    } else {
+      step();
+    }
+  }, 1800);
+}
+
+function stopAuto() {
+  if (autoTimer) {
+    clearInterval(autoTimer);
+    autoTimer = null;
+  }
+  document.getElementById('auto-btn').textContent = '▶▶ 자동재생';
+}
+
+function switchLang(lang) {
+  currentLang = lang;
+  document.querySelectorAll('.tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.lang === lang);
+  });
+  reset();
+}
+
+// ============== EVENTS ==============
+document.getElementById('step-btn').addEventListener('click', step);
+document.getElementById('prev-btn').addEventListener('click', prev);
+document.getElementById('reset-btn').addEventListener('click', reset);
+document.getElementById('auto-btn').addEventListener('click', () => {
+  if (autoTimer) stopAuto();
+  else startAuto();
+});
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => switchLang(t.dataset.lang));
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.code === 'Space' || e.code === 'ArrowRight') {
+    e.preventDefault(); step();
+  } else if (e.code === 'ArrowLeft') {
+    e.preventDefault(); prev();
+  } else if (e.key === 'r' || e.key === 'R') {
+    reset();
+  } else if (e.key === '1') { switchLang('java'); }
+    else if (e.key === '2') { switchLang('javascript'); }
+    else if (e.key === '3') { switchLang('dart'); }
+    else if (e.key === '4') { switchLang('llm'); }
+});
+
+// ============== INIT ==============
+render();
+</script>
+</body>
+</html>
