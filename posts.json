@@ -1,8 +1,8 @@
 {
   "categories": [
+    "skill",
     "msa",
-    "설치",
-    "skill"
+    "설치"
   ],
   "posts": [
     {
@@ -158,53 +158,6 @@
       "categories": [
         "설치"
       ]
-    },
-    {
-      "postId": 11,
-      "id": "memory-guide",
-      "title": "메모리 관리 가이드: Java · JavaScript · Dart",
-      "date": "2026-05-15",
-      "categories": [
-        "skill"
-      ],
-      "summary": "같은 Counter 예제로 세 언어의 메모리 모델 차이를 비교한 정리 노트",
-      "filename": "posts/11/memory-guide.html",
-      "tags": [
-        "java",
-        "javascript",
-        "dart",
-        "memory",
-        "gc",
-        "stack",
-        "heap"
-      ],
-      "engine": "md",
-      "themeInjected": true,
-      "sourcePath": "_src/memory-guide.md",
-      "originalFilename": "memory-guide.md"
-    },
-    {
-      "postId": 12,
-      "id": "memory-simulator",
-      "title": "메모리 시뮬레이터 — Java / JavaScript / Dart (확장판)",
-      "date": "2026-05-15",
-      "categories": [
-        "skill"
-      ],
-      "summary": "Counter 클래스 + 클래스 밖 변수 + 1급객체 함수를 세 언어로 구현하고 메모리 변화를 추적하는 인터랙티브 시뮬레이터",
-      "filename": "posts/12/memory-simulator.html",
-      "tags": [
-        "java",
-        "javascript",
-        "dart",
-        "memory",
-        "simulator",
-        "interactive"
-      ],
-      "engine": "html",
-      "themeInjected": true,
-      "sourcePath": "_src/memory-simulator.html",
-      "originalFilename": "memory-simulator.html"
     }
   ]
 }
